@@ -32,21 +32,18 @@
 ---
 
 ## 💰 3. โมเดลธุรกิจและการสร้างรายได้ (Business Model)
-
-แพลตฟอร์มเปิดให้นักศึกษาใช้งานฟรี 100% และเปิดให้บริษัททั่วไปลงทะเบียนเพื่อโพสต์งานพื้นฐานได้ฟรี เพื่อดึงดูดผู้ใช้งานเข้าสู่ระบบ (Network Effect) โดยแพลตฟอร์มสร้างรายได้จากฝั่งบริษัทผู้ประกอบการ (**B2B Freemium & Value-Added Services**) ดังนี้:
-
-* **⚡ Featured / Boosted Job Post:** บริการดันการ์ดประกาศงานขึ้นแสดงผลลำดับบนสุดของหน้าค้นหา พร้อมป้ายกำกับพิเศษ (`Urgent / Featured`) สำหรับบริษัทที่ต้องการรับนักศึกษาฝึกงานเร่งด่วน
-* **🔥 Express KYB & Fast-Track Review:** บริการตรวจสอบเอกสารยืนยันตัวตนและตรวจอนุมัติประกาศงานแบบเร่งด่วนพิเศษ (Priority Queue) สำหรับบริษัทใหม่ที่ต้องการเผยแพร่งานทันที
-* **💎 HR Pro Subscription (Future Phase):** แพ็กเกจสมาชิกรายเดือนสำหรับองค์กรขนาดใหญ่ เพื่อปลดล็อกโควตาการโพสต์งานไม่จำกัดและการค้นหาเรซูเม่นักศึกษาเชิงรุก (Talent Pool Search)
+- **⚡ Featured / Boosted Job Post:** บริการดันการ์ดประกาศงานขึ้นแสดงผลลำดับบนสุดของหน้าค้นหา พร้อมป้ายกำกับพิเศษ (`Urgent / Featured`) สำหรับบริษัทที่ต้องการรับนักศึกษาฝึกงานเร่งด่วน
+- **🔥 Express KYB & Fast-Track Review:** บริการตรวจสอบเอกสารยืนยันตัวตนและตรวจอนุมัติประกาศงานแบบเร่งด่วนพิเศษ (Priority Queue) สำหรับบริษัทใหม่ที่ต้องการเผยแพร่งานทันที
+- **💎 HR Pro Subscription (Future Phase):** แพ็กเกจสมาชิกรายเดือนสำหรับองค์กรขนาดใหญ่ เพื่อปลดล็อกโควตาการโพสต์งานไม่จำกัดและการค้นหาเรซูเม่นักศึกษาเชิงรุก (Talent Pool Search)
 
 ---
 
 ## 🧩 4. ขอบเขตของระบบและประเภทงาน (System Scope & Job Categories)
 
 ### 👥 4.1 ผู้ใช้งานระบบ (Actors)
-* **🎓 นักศึกษา (Student):** สมัครใช้งานด้วยอีเมลสถาบันการศึกษา (`@ac.th`), สร้างโปรไฟล์/เรซูเม่, ค้นหาและสมัครงาน, กด Report ประกาศงานที่น่าสงสัย และเขียนรีวิวบริษัทเมื่อได้รับการตอบรับเข้าฝึกงานจริง
-* **🏢 ตัวแทนบริษัท / ฝ่ายบุคคล (Company / HR):** ลงทะเบียนองค์กร, ยื่นข้อมูลยืนยันตัวตนผ่านระบบ e-KYB (รองรับการต่อพ่วง 3rd Party / Mock Service), สร้างการ์ดประกาศรับนักศึกษาฝึกงาน, คัดเลือกผู้สมัคร และสะสมระดับความน่าเชื่อถือ (`Trust Tier & Badges`)
-* **🛡️ ผู้ดูแลแพลตฟอร์ม (Platform Admin - ฝั่งเรา):** ตรวจสอบเอกสาร KYB ของบริษัทใหม่, ตรวจอนุมัติประกาศงานที่ติดคิวความเสี่ยงปานกลาง (`Manual Review Queue`), จัดการคำต้องห้าม (Blacklist Keywords) และดูแลเคสที่ถูกนักศึกษากด Report
+- **🎓 นักศึกษา (Student):** สมัครใช้งานด้วยอีเมลสถาบันการศึกษา (`@ac.th`), สร้างโปรไฟล์/เรซูเม่, ค้นหาและสมัครงาน, กด Report ประกาศงานที่น่าสงสัย และเขียนรีวิวบริษัทเมื่อได้รับการตอบรับเข้าฝึกงานจริง
+- **🏢 ตัวแทนบริษัท / ฝ่ายบุคคล (Company / HR):** ลงทะเบียนองค์กร, ยื่นข้อมูลยืนยันตัวตนผ่านระบบ e-KYB (รองรับการต่อพ่วง 3rd Party / Mock Service), สร้างการ์ดประกาศรับนักศึกษาฝึกงาน, คัดเลือกผู้สมัคร และสะสมระดับความน่าเชื่อถือ (`Trust Tier & Badges`)
+- **🛡️ ผู้ดูแลแพลตฟอร์ม (Platform Admin):** ตรวจสอบเอกสาร KYB ของบริษัทใหม่, ตรวจอนุมัติประกาศงานที่ติดคิวความเสี่ยงปานกลาง (`Manual Review Queue`), จัดการคำต้องห้าม (Blacklist Keywords) และดูแลเคสที่ถูกนักศึกษากด Report
 
 ### 📋 4.2 ขอบเขตประเภทงานบนแพลตฟอร์ม (Supported Job Categories)
 1. **💻 สายเทคโนโลยีและดิจิทัล (Tech & IT):** เช่น Software Engineer Intern, QA/Tester, UI/UX Designer, Data Analyst
@@ -57,7 +54,7 @@
 
 | ลำดับ | Microservice | ความสามารถหลัก (Functional Requirements) |
 | :---: | :--- | :--- |
-| **1** | **Identity & Company KYB Service** | - ระบบสมัครสมาชิกและแยกสิทธิ์ผู้ใช้งาน (`STUDENT`, `COMPANY_HR`, `PLATFORM_ADMIN`)<br>- ระบบตรวจสอบโดเมนอีเมลนักศึกษา (`@ac.th`) และตรวจสอบโดเมนอีเมลองค์กรของ HR<br>- ระบบ **e-KYB Onboarding**: กรอกเลขทะเบียนนิติบุคคล 13 หลักและอัปโหลดเอกสารรับรองบริษัท โดยออกแบบโครงสร้างโค้ดรองรับการเชื่อมต่อ **3rd Party / Mock Verification API** (ลดความซับซ้อนในการขอข้อมูลจากหน่วยงานรัฐ)<br>- ระบบจัดการระดับความน่าเชื่อถือสะสม (**Trust Tier 0, 1, 2**) อัปเกรดอัตโนมัติเมื่อโพสต์งานผ่านเกณฑ์ครบ 3 ครั้งโดยไม่มีประวัติถูกร้องเรียน |
+| **1** | **Identity & Company KYB Service** | - ระบบสมัครสมาชิกและแยกสิทธิ์ผู้ใช้งาน (`STUDENT`, `COMPANY_HR`, `PLATFORM_ADMIN`)<br>- ระบบตรวจสอบโดเมนอีเมลนักศึกษา (`@ac.th`) และตรวจสอบโดเมนอีเมลองค์กรของ HR<br>- ระบบ **e-KYB Onboarding**: กรอกเลขทะเบียนนิติบุคคล 13 หลักและอัปโหลดเอกสารรับรองบริษัท โดยออกแบบโครงสร้างโค้ดรองรับการเชื่อมต่อ **3rd Party / Mock Verification API** <br>- ระบบจัดการระดับความน่าเชื่อถือสะสม (**Trust Tier 0, 1, 2**) อัปเกรดอัตโนมัติเมื่อโพสต์งานผ่านเกณฑ์ครบ 3 ครั้งโดยไม่มีประวัติถูกร้องเรียน |
 | **2** | **Job & Search Service** | - ระบบสร้าง/แก้ไข/ปิด การ์ดประกาศงานตามโครงสร้างมาตรฐาน (บังคับเลือกหมวดหมู่ Tech, Business, Corporate, บังคับระบุรูปแบบงาน เบี้ยเลี้ยง และชื่อ Mentor)<br>- รองรับสถานะประกาศงานพิเศษ (`Featured Job`) สำหรับดันโพสต์ขึ้นแสดงผลลำดับแรก<br>- ระบบจัดการสถานะประกาศงาน (`DRAFT` $\rightarrow$ `PENDING_REVIEW` $\rightarrow$ `PUBLISHED` / `REJECTED` / `SUSPENDED`)<br>- ระบบค้นหาและตัวกรองละเอียด (Filter ตามหมวดหมู่สายงาน, เบี้ยเลี้ยง, รูปแบบงาน และป้ายสัญลักษณ์บริษัท) |
 | **3** | **Verification & Trust Service**<br>*(Core Highlight)* | - **Automated Pre-Screening**: สแกนคำต้องห้าม (Blacklist Keywords เช่น ค่าสมัคร, ค่าประกัน, งานคลิกโฆษณา) และตรวจจับการแอบแฝงช่องทางติดต่อส่วนตัวนอกระบบ (เบอร์โทร/LINE)<br>- **Risk Scoring Engine**: คำนวณคะแนนความเสี่ยงและคัดแยกประกาศงานออกเป็น 3 คิวอัตโนมัติ (เขียว / เหลือง / แดง) เพื่อลดภาระทีม Admin ของเรา<br>- **Admin Verification Dashboard**: หน้าจัดการคิวตรวจสอบสำหรับทีมงานหลังบ้าน พร้อมระบบตั้งค่าคำต้องห้ามและระบุเหตุผลการตีกลับ<br>- **Auto-Suspend Mechanism**: ระบบรับแจ้ง Report จากนักศึกษา หากครบ 3 ครั้งจากบัญชีต่างกัน จะเปลี่ยนสถานะงานเป็น `SUSPENDED` ทันที |
 | **4** | **Application & Review Service** | - ระบบส่งใบสมัครฝึกงานพร้อมแนบไฟล์ Resume ภายในแพลตฟอร์ม<br>- ระบบติดตามและเปลี่ยนสถานะใบสมัคร (`APPLIED` $\rightarrow$ `INTERVIEWING` $\rightarrow$ `ACCEPTED` $\rightarrow$ `COMPLETED`)<br>- **Verified Review System**: ปลดล็อกปุ่มให้คะแนนดาว (1-5 ดาว) และเขียนรีวิวเฉพาะนักศึกษาที่มีสถานะใบสมัครเป็น `ACCEPTED` หรือ `COMPLETED` เท่านั้น<br>- ระบบแจ้งเตือน (Notification) เมื่อสถานะการตรวจสอบหรือสถานะใบสมัครเปลี่ยนแปลง |
@@ -91,13 +88,10 @@
 ---
 
 ## 🔄 6. แนวทางการพัฒนาตาม SDLC (System Development Life Cycle)
-
-เลือกใช้รูปแบบ **Agile & Iterative Incremental Model** แบ่งรอบการพัฒนาเป็น 4 สัปดาห์ (Weekly Sprints) โดยออกแบบให้ระบบยืดหยุ่นผ่านการจำลอง API เพื่อลดขั้นตอนที่ยุ่งยาก:
-
 1. **Planning & Requirement Analysis:** วิเคราะห์ปัญหาการคัดกรองงาน กำหนดกฎ Risk Score, Blacklist และออกแบบโครงสร้างการจำลอง 3rd Party API สำหรับ e-KYB
-2. **System & Architecture Design:** ออกแบบสถาปัตยกรรม Microservices, API Gateway, Database Schemas, API Contract และกำหนดโครงสร้าง Event Payload (รับผิดชอบหลักโดย SA)
+2. **System & Architecture Design:** ออกแบบสถาปัตยกรรม Microservices, API Gateway, Database Schemas, API Contract และกำหนดโครงสร้าง Event Payload
 3. **Implementation:** พัฒนาแยกตามราย Service โดย SA และ Junior แบ่งงานกันเขียนโค้ดตาม API Contract ที่กำหนดไว้
-4. **Integration & UAT Testing:** Tester เข้ามาทดสอบการส่ง Event ข้าม Service และทดสอบตามกรณีศึกษา (UAT) ตั้งแต่ช่วงกลางโปรเจกต์
+4. **Integration & UAT Testing:** Tester เข้ามาทดสอบการส่ง Event ข้าม Service และทดสอบตามกรณีศึกษา (UAT) 
 5. **Deployment:** รันระบบทั้งหมดด้วย Docker Compose เพื่อสาธิตการทำงานแบบ End-to-End
 
 ---
@@ -113,17 +107,14 @@
 ---
 
 ## 🎨 8. การออกแบบ UI/UX (โทนสว่าง - Light Theme)
-
-ออกแบบภายใต้แนวคิด **"Clean & Trustworthy Light Theme"** โดยอ้างอิงความโปร่งใสและเป็นมืออาชีพจากแพลตฟอร์มอย่าง *Fastwork* และ *LinkedIn*:
-
-* **🎨 ชุดสีหลัก (Color Palette):**
-  * **Background:** `#FFFFFF` (Pure White) และ `#F8FAFC` (Slate 50) ช่วยให้อ่านรายละเอียดงานได้สบายตาและดูสะอาด
-  * **Primary Brand Color:** `#2563EB` (Trust Royal Blue) สื่อถึงความน่าเชื่อถือ ความเป็นทางการ และการรับรองจากระบบ
+- **🎨 ชุดสีหลัก (Color Palette):**
+  * **Background:** `#FFFFFF` (Pure White) และ `#F8FAFC` 
+  * **Primary Brand Color:** `#2563EB` (Trust Royal Blue) 
   * **Semantic Verification Colors:**
     * 🟢 **Emerald Green (`#10B981`):** สำหรับป้าย `Verified Badge`, `Trusted Partner` และคิวงาน `Low Risk (Auto-Approved)`
     * 🟡 **Amber Gold (`#F59E0B`):** สำหรับสถานะ `Pending Review` และคิวงาน `Medium Risk`
     * 🔴 **Coral Red (`#EF4444`):** สำหรับแจ้งเตือนคำต้องห้าม และสถานะ `Auto-Rejected / Suspended`
-* **✨ องค์ประกอบสำคัญบนหน้าจอ (Key UI Components):**
+- **✨ องค์ประกอบสำคัญบนหน้าจอ (Key UI Components):**
   * **Structured Job Card:** การ์ดงานแสดงหมวดหมู่สายงาน, ป้าย Badge ของบริษัทชัดเจน, มียอดคะแนนดาวรีวิว และป้ายกำกับเบี้ยเลี้ยงตั้งแต่มุมมองแรก
   * **Trust Progress Bar (ฝั่ง HR):** แถบแสดงความคืบหน้าว่าบริษัทต้องโพสต์งานผ่านอีกกี่ครั้งจึงจะได้เลื่อนขั้นเป็น `Trusted Partner (Fast-Track)`
   * **Traffic-Light Admin Queue:** ตารางตรวจงานของทีม Admin ของเราที่แยกแถบสี เขียว/เหลือง/แดง พร้อมไฮไลต์คำต้องห้ามที่ระบบตรวจพบให้อัตโนมัติ
@@ -132,12 +123,12 @@
 
 ## 📅 9. แผนการดำเนินงาน 4 สัปดาห์ (Work Plan: 4 Weeks)
 
-| สัปดาห์ | เป้าหมายหลัก (Weekly Milestone) | รายละเอียดงานของทีม (4 ตำแหน่ง: PM, SA, Junior, Tester) | สิ่งที่ส่งมอบ (Deliverables) |
+| สัปดาห์ | เป้าหมายหลัก (Weekly Milestone) | งานที่ต้องดำเนินการ (Key Activities) | สิ่งที่ส่งมอบ (Deliverables) |
 | :---: | :--- | :--- | :--- |
-| **Week 1** | **Design, Setup & e-KYB Onboarding** | - **PM:** สรุป Requirement, กำหนดกฎ Risk Score & Blacklist, ทำ UAT Test Cases ร่วมกับ Tester<br>- **SA:** ออกแบบ System Architecture, Database, API Contract และทำระบบ Auth / e-KYB (รองรับ 3rd Party/Mock Adapter)<br>- **Junior:** เซ็ตโปรเจกต์ โครงสร้างโฟลเดอร์ และช่วย SA ทำหน้าฟอร์มพื้นฐาน<br>- **Tester:** วางแผน Test Cases และเตรียมข้อมูลจำลอง (Mock Data) | เอกสาร Requirement + Architecture Diagram + API Contract + Demo การสมัคร HR และส่งเอกสาร (e-KYB ผ่าน Mock API) |
-| **Week 2** | **Core Verification Engine**<br>*(ด่านตรวจงานอัตโนมัติ)* | - **PM:** เขียนระบบสแกนคำต้องห้าม, คำนวณ Risk Score (เขียว/เหลือง/แดง) และทำหน้า Admin Queue<br>- **SA:** ช่วย Junior ออกแบบและตรวจทานโค้ดฝั่ง `Job Service`<br>- **Junior:** เขียนฟอร์มสร้างการ์ดงานของ HR (รองรับหมวด Tech, Business, Corporate) และส่ง Event เข้า Queue<br>- **Tester:** ทดสอบการส่ง Event ข้าม Service และเช็กความถูกต้องของกฎสแกนคำต้องห้าม | **Demo ไฮไลต์:** โพสต์งาน 3 รูปแบบโชว์การแยกเข้าคิว 🟢 เขียว (ผ่านเลย), 🟡 เหลือง (รอทีมเรากดอนุมัติ), 🔴 แดง (ตีกลับทันที) |
-| **Week 3** | **Student Search, Application & Auto-Suspend** | - **PM:** ทำระบบกด Report งานน่าสงสัย (ครบ 3 ครั้งซ่อนโพสต์อัตโนมัติ) และระบบอัปเกรดบริษัทเป็น `Tier 2`<br>- **SA:** ดูแลความเรียบร้อยของ API Gateway และระบบหลังบ้าน<br>- **Junior:** ทำหน้าค้นหางานสำหรับนักศึกษา, ตัวกรองหมวดหมู่สายงาน และระบบกดส่งใบสมัคร (`Application Service`)<br>- **Tester:** ทำ Integration Testing ตรวจสอบ Flow การสมัครงานและการกด Report | Demo นักศึกษาค้นหางานที่ผ่านการ Verify แล้ว กดสมัครงาน และทดสอบการกด Report จนโพสต์ถูกระงับอัตโนมัติ |
-| **Week 4** | **Verified Review, UAT & Final Polish** | - **PM:** คุมภาพรวม จัดเตรียมพรีเซนต์ และสรุปผลงาน<br>- **SA:** ตรวจสอบความปลอดภัยและจัดการ Error Handling ภาพรวมระบบ<br>- **Junior:** พัฒนาระบบเขียนรีวิวและให้ดาว (Verified Review)<br>- **Tester:** รัน UAT ครบทุกเคสจริง สรุปรายงาน Bug และตรวจสอบความเสถียรระบบทั้งหมด | ระบบฉบับสมบูรณ์พร้อมผลการทดสอบ UAT และรายงานจาก Tester |
+| **Week 1** | **Design, Setup & e-KYB Onboarding** | - สรุป Requirement, กำหนดกฎ Risk Score & Blacklist, และวางแผน UAT Test Cases<br>- ออกแบบ System Architecture, Database, และ API Contract<br>- พัฒนาระบบ Auth และ e-KYB (รองรับ 3rd Party/Mock Adapter)<br>- สร้าง Project Structure และเตรียมข้อมูลจำลอง (Mock Data) | เอกสาร Requirement + Architecture Diagram + API Contract + Demo การสมัคร HR และส่งเอกสาร (e-KYB) |
+| **Week 2** | **Core Verification Engine**<br>*(ด่านตรวจงานอัตโนมัติ)* | - พัฒนาระบบสแกนคำต้องห้าม และคำนวณ Risk Score (เขียว/เหลือง/แดง)<br>- พัฒนาฟอร์มสร้างการ์ดประกาศงาน (รองรับหมวด Tech, Business, Corporate)<br>- เชื่อมต่อการทำงานผ่าน Message Queue (`JobSubmitted` Event)<br>- ทำการทดสอบ Integration และตรวจสอบความถูกต้องของกฎการคัดกรอง | **Demo ไฮไลต์:** โพสต์งาน 3 รูปแบบโชว์การแยกเข้าคิว 🟢 เขียว (ผ่านเลย), 🟡 เหลือง (รอทีมเรากดอนุมัติ), 🔴 แดง (ตีกลับทันที) |
+| **Week 3** | **Student Search, Application & Auto-Suspend** | - พัฒนาระบบค้นหางานสำหรับนักศึกษา และตัวกรองหมวดหมู่สายงาน<br>- พัฒนาระบบการส่งใบสมัครฝึกงาน (`Application Service`)<br>- สร้างระบบ Auto-Suspend (กด Report งานน่าสงสัยครบ 3 ครั้งซ่อนโพสต์)<br>- ปรับปรุงระบบหลังบ้าน (API Gateway) และทดสอบ Flow การทำงานหลัก | Demo นักศึกษาค้นหางานที่ผ่านการ Verify แล้ว กดสมัครงาน และทดสอบการกด Report จนโพสต์ถูกระงับอัตโนมัติ |
+| **Week 4** | **Verified Review, UAT & Final Polish** | - พัฒนาระบบประเมินผลนักศึกษา (Pass/Fail) และระบบเขียนรีวิวบริษัท (Verified Review)<br>- ดำเนินการทดสอบ UAT ครบทุกเคสจริง และสรุปรายงาน Bug<br>- ตรวจสอบความปลอดภัยและจัดการ Error Handling ภาพรวมระบบ<br>- จัดทำสไลด์นำเสนอและสรุปผลการดำเนินงาน | ระบบฉบับสมบูรณ์พร้อมผลการทดสอบ UAT และรายงานผลการทดสอบระบบ |
 
 ---
 
@@ -160,5 +151,5 @@
 | :---: | :--- | :--- | :--- |
 | **1** | 67115588 นายธนกฤต เพ็ชรกำจัด | **Project Manager (PM)** | คุมภาพรวมโครงการ, ออกแบบ Business Logic ของระบบ Verify (Risk Score & Blacklist) และดูแล `Verification Service` / Admin Dashboard |
 | **2** | 67132694 นายนิรินทร์ เทพิสุทธิพันธุ์| **System Architect (SA)** | ออกแบบสถาปัตยกรรม Microservices, API Gateway, Database Schemas, API Contract (รองรับ 3rd Party/Mock e-KYB) และดูแล `Identity & Company KYB Service` |
-| **3** | 67097950 นายอนันยศ ชัยชนะ | **Tester (QA)** | ออกแบบ Test Cases, ควบคุมคุณภาพระบบ, ทำ Integration & UAT Testing และตรวจสอบความถูกต้องของการทำงานข้าม Microservices |
-| **4** | 67107433 นายณัชพล วงศาจันทร์ | **Junior Developer (Junior)** |พัฒนาฟังก์ชันและหน้าจอตาม API Contract ของ SA โดยรับผิดชอบ `Job & Search Service` (รองรับหมวด Tech, Business, Corporate) และ `Application & Review Service` |
+| **3** | 67097950 นายอนันยศ ชัยชนะ | **Tester(QA)** | เขียนสคริปต์จำลองข้อมูล, พัฒนาระบบ Automated Test, ช่วยเขียนโค้ดร่วมกับ Junior Developer, และทำ Integration & UAT Testing เพื่อตรวจสอบความถูกต้องของการทำงานข้าม Microservices |
+| **4** | 67107433 นายณัชพล วงศาจันทร์ | **Junior Developer (Junior)** | พัฒนาฟังก์ชันและหน้าจอตาม API Contract ของ SA โดยรับผิดชอบ `Job & Search Service` (รองรับหมวด Tech, Business, Corporate) และ `Application & Review Service` |
