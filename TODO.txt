@@ -13,8 +13,8 @@
 - [ ] **Tester (`Student Service`):** พัฒนาหน้า UI ค้นหางาน (Search & Filter) และเขียน Unit Test ให้ PM
 
 ## 🔍 Week 3: Student Experience & Auto-Suspend
-- [ ] **PM (`Verification Service`):** พัฒนาระบบ Auto-Suspend จากการกด Report **(พร้อมเงื่อนไขยกเว้นให้ Tier 2 ไปเข้าคิวสีเหลืองแทนเพื่อกันกลั่นแกล้ง)**
-- [ ] **SA (`Identity Service`):** พัฒนา Logic เลื่อนระดับบริษัท (Tier 2 Upgrade และการ Downgrade เมื่อป้าย On-Site หมดอายุ)
+- [ ] **PM (`Verification Service`):** พัฒนาระบบ Auto-Suspend เมื่อ Tier 1 ถูก Report ครบ 3 บัญชี และคิวสีเหลืองของ Tier 2 ตั้งแต่ Report แรกเพื่อให้ Admin ตรวจว่ามีมูลก่อนลด Tier
+- [ ] **SA (`Identity Service`):** พัฒนา Logic เลื่อนระดับบริษัท (Tier 2 Upgrade, Downgrade เมื่อ Admin ยืนยัน Report ที่มีมูล และการหมดอายุของป้าย On-Site)
 - [ ] **Junior (`Job Service`):** พัฒนาระบบจัดการประกาศงานฝั่ง HR (Dashboard)
 - [ ] **Tester (`Student Service`):** พัฒนาระบบส่งใบสมัครฝึกงาน และเขียน Automated E2E Test
 
@@ -22,7 +22,7 @@
 - [ ] **Junior (`Job Service`):** พัฒนาปุ่มให้ HR กดประเมินนักศึกษาตอนจบฝึกงาน (Pass/Fail)
 - [ ] **Tester (`Student Service`):** พัฒนาระบบรีวิวบริษัท **(ปลดล็อกให้นักศึกษาที่ Fail รีวิวได้ด้วย แต่ติดป้ายกำกับ)**
 - [ ] **Tester (`Student Service`):** พัฒนาหน้า Supervisor Portal สำหรับกดออก E-Certificate **(เขียน Logic ดักจับเวลาฝึกงานขั้นต่ำ 30 วัน)**
-- [ ] **Tester (QA):** ดำเนินการทดสอบ **UAT เต็มรูปแบบ** (ครอบคลุมทั้ง 8 เคส) และสรุปรายงาน Bug
+- [ ] **Tester (QA):** ดำเนินการทดสอบ **UAT เต็มรูปแบบ** (ครอบคลุมทั้ง 9 เคส) และสรุปรายงาน Bug
 - [ ] **SA (`Identity Service`):** ตรวจสอบ Security, จัดการ Error Handling, และปรับแต่ง Performance
 - [ ] **Junior & Tester:** ทำการ Debug และแก้ไข Bug (Bug Fixing) ร่วมกัน
 - [ ] **PM:** ควบคุมภาพรวมงาน (QC), เตรียมชุดข้อมูล Demo และทำสไลด์นำเสนอ

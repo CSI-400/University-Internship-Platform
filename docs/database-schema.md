@@ -36,12 +36,12 @@
 
 | ตาราง | คอลัมน์สำคัญ | Key และข้อบังคับ |
 | --- | --- | --- |
-| `approved_job_evidence` | `source_event_id UUID`, `company_id UUID`, `job_id UUID`, `job_version INTEGER`, `approval_method`, `approved_at TIMESTAMP_UTC` | PK `source_event_id`; FK company; UNIQUE `(job_id, job_version)`; เก็บทุกครั้งที่ Job เข้าสู่ `PUBLISHED` เพื่อให้ PM เลือกวิธีนับภายหลัง |
+| `approved_job_evidence` | `source_event_id UUID`, `company_id UUID`, `job_id UUID`, `first_published_job_version INTEGER`, `approval_method`, `approved_at TIMESTAMP_UTC` | PK `job_id`; UNIQUE `source_event_id`; FK company; บันทึกเฉพาะการเข้าสู่ `PUBLISHED` ครั้งแรกของประกาศใหม่ ทั้ง AUTO และ ADMIN; การแก้หรือเผยแพร่ซ้ำไม่นับเพิ่ม |
 | `internship_result_evidence` | `internship_id UUID`, `source_event_id UUID`, `company_id UUID`, `assessment_result`, `completed_on DATE` | PK `internship_id`; UNIQUE `source_event_id`; FK company; Pass อย่างน้อย 1 รายการจึงผ่านเงื่อนไขผลฝึกงาน |
-| `company_report_evidence` | `report_id UUID`, `source_event_id UUID`, `company_id UUID`, `job_id UUID`, `reported_at TIMESTAMP_UTC` | PK `report_id`; UNIQUE `source_event_id`; FK company; ใช้บันทึกว่าบริษัทเคยถูก Report |
+| `confirmed_report_evidence` | `report_review_id UUID`, `source_event_id UUID`, `company_id UUID`, `job_id UUID`, `confirmed_at TIMESTAMP_UTC` | PK `report_review_id`; UNIQUE `source_event_id`; FK company; เก็บเฉพาะ Report ที่ Admin ยืนยันว่ามีมูล |
 | `on_site_pass_evidence` | `verification_id UUID`, `source_event_id UUID`, `company_id UUID`, `visited_on DATE`, `supervisor_user_id UUID` | PK `verification_id`; UNIQUE `source_event_id`; FK company; อัปเดตวันหมดอายุจากผลตรวจล่าสุดที่มีสิทธิ์ใช้ |
 
-การเลื่อน Tier 2 ต้องตรวจ `approved_job_evidence`, `internship_result_evidence` และเรียก report-history ปัจจุบันจาก Verification ก่อน commit; หาก Verification ไม่พร้อมให้คง Tier เดิม นโยบายการนับอนุมัติ 3 ครั้งและการลด Tier 2 เมื่อมี Report ภายหลังยังเป็นข้อเปิดของ PM จึงไม่ฝังกฎการนับไว้ใน unique constraint
+การเลื่อน Tier 2 ต้องมี `approved_job_evidence` อย่างน้อย 3 `job_id` ไม่ซ้ำกัน, `internship_result_evidence` ที่ PASS อย่างน้อย 1 รายการ และไม่มี `confirmed_report_evidence` รวมทั้งเรียก report-history ปัจจุบันจาก Verification ก่อน commit เพื่อกัน Event มาช้า หาก Verification ไม่พร้อมให้คง Tier เดิม `CompanyReportConfirmed` ต้องลดบริษัท Tier 2 เป็น Tier 1 และหยุดแสดง On-Site Badge ใน transaction เดียวกับการบันทึกหลักฐานและ Outbox; Report ที่ยังไม่ยืนยันหรือถูก DISMISS ไม่เปลี่ยน Tier
 
 ### 2.3 ดัชนีหลัก
 
@@ -54,15 +54,14 @@
 
 | ตาราง | คอลัมน์สำคัญ | Key และข้อบังคับ |
 | --- | --- | --- |
-| `jobs` | `id UUID`, `company_id UUID`, `created_by_hr_id UUID`, `status`, `current_version INTEGER`, `submitted_at TIMESTAMP_UTC NULL`, `risk_score INTEGER NULL`, `moderation_hold BOOLEAN`, `closed_at TIMESTAMP_UTC NULL` | PK `id`; `current_version >= 1`; `moderation_hold = true` ห้ามเข้าสู่ `PUBLISHED`; `company_id` และ HR ID เป็น cross-service reference ไม่มี FK |
-| `job_revisions` | `job_id UUID`, `version INTEGER`, `job_title VARCHAR(240)`, `description TEXT`, `category`, `benefits JSON`, `allowance_amount DECIMAL(12,2) NULL`, `allowance_currency CHAR(3) NULL`, `allowance_period NULL`, `edited_by_hr_id UUID`, `recorded_at TIMESTAMP_UTC` | PK `(job_id, version)`; FK `job_id → jobs.id`; เนื้อหา immutable หลังสร้าง; `jobs.current_version` ชี้เวอร์ชันที่แสดง/ตรวจ |
+| `jobs` | `id UUID`, `company_id UUID`, `created_by_hr_id UUID`, `job_title VARCHAR(240)`, `description TEXT`, `category`, `benefits JSON`, `allowance_amount DECIMAL(12,2) NULL`, `allowance_currency CHAR(3) NULL`, `allowance_period NULL`, `status`, `current_version INTEGER`, `submitted_at TIMESTAMP_UTC NULL`, `risk_score INTEGER NULL`, `moderation_hold BOOLEAN`, `closed_at TIMESTAMP_UTC NULL` | PK `id`; เก็บเฉพาะเนื้อหาปัจจุบัน; `current_version >= 1` เป็นเลขภายในกันผลตรวจเก่า ไม่เก็บหรือแสดงเนื้อหาเก่า; `moderation_hold = true` ห้ามเข้าสู่ `PUBLISHED`; `company_id` และ HR ID เป็น cross-service reference ไม่มี FK |
 | `job_status_history` | `id UUID`, `job_id UUID`, `job_version INTEGER`, `previous_status`, `new_status`, `source_event_id UUID NULL`, `actor_user_id UUID NULL`, `reason TEXT NULL`, `changed_at TIMESTAMP_UTC` | PK `id`; FK job; UNIQUE `source_event_id` เมื่อมีค่า; ใช้ audit การเผยแพร่ การปฏิเสธ และการระงับ |
 
-`POST /v1/jobs` สร้าง `jobs` และ `job_revisions` เวอร์ชัน 1 ใน transaction เดียวกัน `PATCH` เพิ่ม revision ใหม่และอัปเดต `current_version`; ถ้าเคยส่งตรวจให้เปลี่ยน `status = VERIFYING`, ซ่อนงาน และบันทึก `JobEdited` ลง Outbox ใน transaction เดียวกัน งานที่ `SUSPENDED`/`CLOSED` ห้ามแก้หรือส่งตรวจใหม่
+`POST /v1/jobs` สร้าง `jobs` ที่ `current_version = 1` `PATCH` แทนที่เนื้อหาปัจจุบันและเพิ่ม `current_version`; ถ้าเคยส่งตรวจให้เปลี่ยน `status = VERIFYING`, ซ่อนงาน และบันทึก `JobEdited` ลง Outbox ใน transaction เดียวกัน ไม่แสดงเนื้อหาเดิมระหว่างรอผล งานที่ `SUSPENDED`/`CLOSED` ห้ามแก้หรือส่งตรวจใหม่
 
 เมื่อรับ `JobVerificationCompleted` ให้ update แบบมีเงื่อนไข `current_version = job_version AND status = VERIFYING AND moderation_hold = false` เท่านั้น หากไม่ตรงให้ถือเป็นผลเก่าและไม่เผยแพร่ เมื่อรับ `JobSuspensionRequested` ให้ตั้ง `moderation_hold = true` พร้อม `status = SUSPENDED` ก่อนตอบ `JobTransitionResolved`; ผลตรวจที่มาภายหลังเปลี่ยนกลับไม่ได้
 
-ดัชนีหลัก: `jobs(status, updated_at DESC)` สำหรับ public search (`status = PUBLISHED` เท่านั้น), `jobs(company_id, updated_at DESC)` สำหรับ HR dashboard, `job_revisions(job_id, version)` สำหรับอ่านเวอร์ชันปัจจุบัน; search ข้อความอิสระ `q` ใช้ index ที่ DBMS รองรับเมื่อเลือกเทคโนโลยี
+ดัชนีหลัก: `jobs(status, updated_at DESC)` สำหรับ public search (`status = PUBLISHED` เท่านั้น), `jobs(company_id, updated_at DESC)` สำหรับ HR dashboard; search ข้อความอิสระ `q` ใช้ index ที่ DBMS รองรับเมื่อเลือกเทคโนโลยี
 
 ## 4. Verification & Trust DB
 
@@ -73,13 +72,14 @@
 | `job_verifications` | `id UUID`, `job_id UUID`, `job_version INTEGER`, `company_id UUID`, `risk_score INTEGER`, `verdict`, `matched_keywords JSON`, `score_reasons JSON`, `policy_version INTEGER`, `tier_snapshot INTEGER`, `on_site_verified_until_snapshot DATE NULL`, `hr_email_type_snapshot`, `verified_at TIMESTAMP_UTC` | PK `id`; UNIQUE `(job_id, job_version)`; FK `policy_version → risk_policy_versions.version`; ผลตรวจหนึ่งชุดต่อเวอร์ชันประกาศ |
 | `job_review_cases` | `id UUID`, `verification_id UUID`, `job_id UUID`, `job_version INTEGER`, `status`, `decision NULL`, `reason TEXT NULL`, `admin_user_id UUID NULL`, `decision_event_id UUID NULL`, `decided_at TIMESTAMP_UTC NULL` | PK `id`; FK verification; UNIQUE `(job_id, job_version)`; สถานะ `OPEN`, `DECISION_PENDING`, `APPLIED`, `STALE` |
 | `reports` | `id UUID`, `job_id UUID`, `company_id UUID`, `reporter_student_id UUID`, `reason_code`, `description TEXT NULL`, `reported_at TIMESTAMP_UTC` | PK `id`; UNIQUE `(job_id, reporter_student_id)` ป้องกันบัญชีเดิมนับซ้ำ |
-| `report_review_cases` | `id UUID`, `job_id UUID`, `company_id UUID`, `report_count_at_open INTEGER`, `status`, `decision NULL`, `reason TEXT NULL`, `admin_user_id UUID NULL`, `decision_event_id UUID NULL` | PK `id`; UNIQUE `job_id` สำหรับเคส Tier 2/On-Site; dismiss แล้ว report ใหม่สามารถเปิดเคสเดิมอีกครั้ง โดยเก็บแต่ละการตัดสินใน `moderation_actions` |
+| `report_review_cases` | `id UUID`, `job_id UUID`, `company_id UUID`, `report_count_at_open INTEGER`, `status`, `decision NULL`, `reason TEXT NULL`, `admin_user_id UUID NULL`, `decision_event_id UUID NULL` | PK `id`; UNIQUE `job_id`; Tier 1 เปิดหลังครบ 3 บัญชีและ Auto-Suspend, Tier 2/On-Site เปิดเมื่อมี Report แรก; DISMISS แล้ว Report ใหม่จากบัญชีอื่นเปิดเคสเดิมอีกครั้ง |
+| `report_review_decisions` | `id UUID`, `report_review_id UUID`, `decision`, `reason TEXT`, `admin_user_id UUID`, `suspend_job BOOLEAN`, `decided_at TIMESTAMP_UTC` | PK `id`; FK `report_review_id → report_review_cases.id`; เก็บทุกการตัดสิน CONFIRM/DISMISS แม้เปิดเคสเดิมซ้ำ |
 | `moderation_actions` | `id UUID`, `job_id UUID`, `company_id UUID`, `source`, `request_event_id UUID`, `outcome NULL`, `outcome_reason TEXT NULL`, `requested_at TIMESTAMP_UTC`, `resolved_at TIMESTAMP_UTC NULL` | PK `id`; UNIQUE `request_event_id`; บันทึก Auto-Suspend หรือคำสั่ง Admin และผล `JobTransitionResolved` |
 | `on_site_verifications` | `id UUID`, `company_id UUID`, `supervisor_user_id UUID`, `visited_on DATE`, `result`, `notes TEXT NULL`, `recorded_at TIMESTAMP_UTC` | PK `id`; PASS จึงส่ง `OnSiteVerificationPassed`; FAIL เก็บผลแต่ไม่ออก badge |
 
 Verification ตรวจงานโดยบันทึก `job_verifications` และ `job_review_cases` (ถ้าคะแนนปานกลาง) พร้อม `JobVerificationCompleted` ใน Outbox transaction เดียวกัน `risk_score` อาจติดลบตามกฎ ไม่ใส่ CHECK ว่าต้อง ≥ 0 คำที่พบและ score reasons ต้องคง snapshot เดิมแม้ blacklist/policy เปลี่ยนภายหลัง
 
-เมื่อมี Report ใหม่ให้ insert `reports` ก่อนนับจำนวนผู้รายงาน; transaction เดียวกันบันทึก `CompanyReportRecorded` ใน Outbox หากครบ 3 คนและเป็น Tier 1 ให้บันทึก `moderation_actions` พร้อม `JobSuspensionRequested`; Tier 2/On-Site เปิด `report_review_cases` แทน การตรวจ Tier ปัจจุบันต้องอ่าน Identity ไม่ใช้ cache อย่างเดียว
+เมื่อมี Report ใหม่ให้ insert `reports` ก่อนนับจำนวนผู้รายงาน; หากครบ 3 คนและเป็น Tier 1 ให้เปิด `report_review_cases` และบันทึก `moderation_actions` พร้อม `JobSuspensionRequested` ใน Outbox transaction เดียวกัน; Tier 2/On-Site เปิดเคสตั้งแต่ Report แรก การตรวจ Tier ปัจจุบันต้องอ่าน Identity ไม่ใช้ cache อย่างเดียว เมื่อ Admin ตัดสิน CONFIRM ให้บันทึก `report_review_decisions` และ `CompanyReportConfirmed` ใน Outbox transaction เดียวกัน; ถ้าสั่งระงับงานด้วยให้ส่ง `JobSuspensionRequested` แยกต่างหาก
 
 ดัชนีหลัก: `job_verifications(job_id, job_version)` UNIQUE, `job_review_cases(status, created_at)`, `reports(job_id, reporter_student_id)` UNIQUE, `reports(company_id, reported_at)`, `report_review_cases(status, created_at)`, `on_site_verifications(company_id, visited_on DESC)`
 
@@ -115,9 +115,9 @@ Outbox และ Inbox เป็นส่วนหนึ่งของ transact
 ## 7. ข้อบังคับที่ต้องทำใน transaction / service layer
 
 1. **e-KYB:** อนุมัติ submission, เปลี่ยนบริษัทเป็น Tier 1, ป้องกันเลขทะเบียนซ้ำ, เขียน tier history และ Outbox ใน transaction เดียวกัน
-2. **Job edit:** เพิ่ม revision, เลื่อน current version, ซ่อนงานเป็น `VERIFYING` และเขียน Outbox ก่อนตอบ `202`; `If-Match` ต้องเทียบเวอร์ชันปัจจุบัน
+2. **Job edit:** แทนที่เนื้อหาปัจจุบัน เพิ่ม `current_version`, ซ่อนงานเป็น `VERIFYING` และเขียน Outbox ก่อนตอบ `202`; `If-Match` ต้องเทียบเลขลำดับปัจจุบัน
 3. **Job verdict:** ใช้ conditional update ตาม version/status/hold; สร้าง status history และ Outbox `JobPublicationChanged` เมื่อสถานะเปลี่ยน
-4. **Third Report:** นับ `reports` ที่ unique ต่อ job หลัง insert แล้วสร้าง moderation action หรือ review case เพียงครั้งเดียว; `JobSuspensionRequested` ส่งซ้ำได้แต่ต้องไม่ปลดระงับ
+4. **Report:** นับ `reports` ที่ unique ต่อ job หลัง insert; งาน Tier 1 ครบ 3 รายงานจึงสร้าง moderation action ส่วน Tier 2/On-Site เปิด review case ตั้งแต่รายงานแรกเพียงครั้งเดียว; `JobSuspensionRequested` ส่งซ้ำได้แต่ต้องไม่ปลดระงับ
 5. **Internship completion:** ตรวจใบสมัคร `ACCEPTED`, วันเริ่มที่บันทึก, วันสิ้นสุด และผู้ประเมินเป็น HR ของบริษัท; เปลี่ยนเป็น `COMPLETED` พร้อม Outbox `InternshipAssessmentRecorded`
 6. **Review:** ตรวจ Internship เป็น `COMPLETED` และ Student เป็นเจ้าของ; unique `internship_id` กันรีวิวซ้ำ โดยไม่ดู Pass/Fail เป็นเงื่อนไขสิทธิ์
 7. **Certificate:** ตรวจ `PASS` และระยะอย่างน้อย 30 วัน; บันทึก decision, certificate, badge ใน transaction เดียวกัน; unique `internship_id` ป้องกันออกซ้ำ
@@ -125,5 +125,4 @@ Outbox และ Inbox เป็นส่วนหนึ่งของ transact
 ## 8. ข้อเปิดก่อนทำ migration จริง
 
 - DBMS, วิธีเก็บไฟล์, เทคนิค search และชนิด JSON จริงยังต้องเลือกตาม stack ของทีม
-- PM ต้องยืนยันวิธีนับอนุมัติ 3 ครั้งของ Tier 2 และนโยบายเมื่อบริษัท Tier 2 ถูก Report ใหม่ หลักฐานใน schema รองรับทั้งสองทาง
 - วันเริ่มฝึกงานตาม API Contract บันทึกตอน HR รับเข้าและห้ามย้อนหลัง; หากต้องยืนยันวันเริ่มจริงโดยนักศึกษาหรือ Supervisor ต้องเพิ่ม workflow ก่อน implementation

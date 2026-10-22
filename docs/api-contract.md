@@ -1,7 +1,7 @@
 # API Contract v1 — University Internship Platform
 
 **สถานะ:** แบบร่างร่วมสำหรับทีม, Week 1<br>
-**อ้างอิง:** `docs/architecture.md`, `README.md`, `# 🛡️ Verification Rules & Risk Sco.txt`
+**อ้างอิง:** `docs/architecture.md`, `README.md`, `Verification Rules & Risk Sco.txt`
 
 เอกสารนี้กำหนด HTTP API ผ่าน Gateway สำหรับ Web UI และ API ภายในที่ต้องใช้ข้ามบริการ ยังไม่กำหนดภาษาโปรแกรม, Gateway, Broker หรือฐานข้อมูล การเปลี่ยนชื่อฟิลด์/สถานะหลังเริ่มพัฒนาต้องแก้เอกสารนี้ร่วมกับผู้พัฒนาทุกบริการ
 
@@ -43,14 +43,14 @@
 
 | Resource | สถานะที่ส่งออก | ความหมาย |
 | --- | --- | --- |
-| Company | `tier: 0`, `1`, `2`; `on_site_verified_until` เป็นวันที่หรือ `null` | Tier 2+ แสดงด้วย Tier 2 พร้อมวันหมดอายุ On-Site แบบ exclusive; Badge ใช้ได้เมื่อ `today < on_site_verified_until` ตามเวลาไทย |
+| Company | `tier: 0`, `1`, `2`; `on_site_verified_until` เป็นวันที่หรือ `null` | Tier 2+ แสดงด้วย Tier 2 พร้อมวันหมดอายุ On-Site แบบ exclusive; Badge ใช้ได้เมื่อ `tier = 2` และ `today < on_site_verified_until` ตามเวลาไทย |
 | KYB submission | `PENDING_EXTERNAL`, `PENDING_ADMIN`, `VERIFIED`, `REJECTED`, `EXTERNAL_ERROR` | บริษัท Tier 0 จนกว่า Admin จะอนุมัติ |
 | Job | `DRAFT`, `VERIFYING`, `PENDING_REVIEW`, `PUBLISHED`, `AUTO_REJECTED`, `REJECTED`, `SUSPENDED`, `CLOSED` | มีเพียง `PUBLISHED` ที่อยู่ใน public search และสมัครได้ |
 | Application | `SUBMITTED`, `ACCEPTED`, `REJECTED` | HR เปลี่ยนได้เฉพาะใบสมัครของงานในบริษัทตน |
 | Internship | `IN_PROGRESS`, `COMPLETED` | `COMPLETED` เป็นเงื่อนไขเปิดสิทธิ์รีวิว ไม่ขึ้นกับผล Pass/Fail |
 | HR assessment | `PASS`, `FAIL` | แสดงกำกับรีวิว; Certificate ออกได้เฉพาะเคส Pass ที่ผ่านเงื่อนไขเวลา |
 
-เมื่อ HR แก้ประกาศที่เคยส่งตรวจแล้ว Job Management เพิ่ม `version`, เปลี่ยนเป็น `VERIFYING`, ซ่อนงานทั้งรายการและส่งตรวจใหม่ `PENDING_REVIEW` ใช้เฉพาะผลคะแนน 20–69 หรือผลที่ Admin รับเข้าคิวตามกฎ ส่วน report ของ Tier 2 มีคิวตรวจแยกและยังคง `PUBLISHED` จน Admin ตัดสิน
+เมื่อ HR แก้ประกาศที่เคยส่งตรวจแล้ว Job Management เพิ่ม `version`, เปลี่ยนเป็น `VERIFYING`, ซ่อนงานทั้งรายการและส่งตรวจใหม่ `PENDING_REVIEW` ใช้เฉพาะผลคะแนน 20–69 หรือผลที่ Admin รับเข้าคิวตามกฎ ส่วน Report ของ Tier 2 มีคิวสีเหลืองแยกตั้งแต่รายงานแรกและยังคง `PUBLISHED` จน Admin ตัดสิน
 
 Blacklist ใน `job_title` หรือ `description` ทำให้ `AUTO_REJECTED` ก่อนพิจารณาช่วงคะแนน หากไม่พบ Blacklist: คะแนน `< 20` → `PUBLISHED`, `20–69` → `PENDING_REVIEW`, `≥ 70` → `AUTO_REJECTED` ทั้ง Tier 1 และ Tier 2 ใช้ช่วงคะแนนเดียวกัน
 
@@ -132,9 +132,9 @@ Gateway ส่ง `/v1/jobs` (ยกเว้น subpath `/reports` และ `/
 
 `category` ใช้ `TECH_IT`, `BUSINESS_MARKETING`, `CORPORATE_SERVICES`; `benefits` เป็น array ซึ่งอาจว่าง และ `allowance` เป็น object หรือ `null` เพื่อให้ R-03 ตรวจได้แน่นอน `risk_score` เป็นคะแนนล่าสุดที่ตรวจเสร็จหรือ `null` ขณะ `VERIFYING`; ไม่รับ `status`, `company_id`, `risk_score`, `version` จาก client ในคำขอสร้าง/แก้
 
-`submit` ใช้กับ `DRAFT` เท่านั้น; งานที่ `SUSPENDED` หรือ `CLOSED` แก้หรือส่งตรวจใหม่ไม่ได้ (`409`) งานที่ `PENDING_REVIEW`, `PUBLISHED`, `AUTO_REJECTED` หรือ `REJECTED` แก้ไขได้แล้วเข้าสู่ `VERIFYING` เพื่อคัดกรองเวอร์ชันใหม่ หากแก้ระหว่าง `VERIFYING` ต้องเพิ่มเวอร์ชันและไม่ใช้ผลตรวจของเวอร์ชันก่อน
+`submit` ใช้กับ `DRAFT` เท่านั้น; งานที่ `SUSPENDED` หรือ `CLOSED` แก้หรือส่งตรวจใหม่ไม่ได้ (`409`) งานที่ `PENDING_REVIEW`, `PUBLISHED`, `AUTO_REJECTED` หรือ `REJECTED` แก้ไขได้แล้วเข้าสู่ `VERIFYING` เพื่อคัดกรองเนื้อหาปัจจุบัน หากแก้ระหว่าง `VERIFYING` ต้องเพิ่ม `version` และไม่ใช้ผลตรวจของเลขเดิม `version` เป็นเลขลำดับภายในสำหรับ concurrency และผลตรวจที่มาช้า ไม่ใช่ระบบเก็บหรือแสดงเนื้อหาเก่า
 
-Job Management ตรวจสถานะ e-KYB และความเป็นเจ้าของกับ Identity ก่อน `submit` และก่อนเปลี่ยนงานที่เคยเผยแพร่ การบันทึกเวอร์ชันใหม่กับงานที่ต้องส่งตรวจต้องไม่ทำให้งานเผยแพร่ค้างอยู่ หาก Identity/Broker ไม่พร้อมให้คงสถานะซ่อนและตอบ `503` หรือรับ `202` พร้อม retry ที่เชื่อถือได้ ห้ามคืน `PUBLISHED` โดยปริยาย
+Job Management ตรวจสถานะ e-KYB และความเป็นเจ้าของกับ Identity ก่อน `submit` และก่อนเปลี่ยนงานที่เคยเผยแพร่ เมื่อแก้งาน `PUBLISHED` ต้องแทนที่เนื้อหา ตั้งสถานะ `VERIFYING` และซ่อนจาก public search/detail ใน transaction เดียวกันก่อนส่งตรวจ Blacklist และ Risk Score ใหม่ ห้ามแสดงเนื้อหาเก่าระหว่างรอตรวจ หาก Identity/Broker ไม่พร้อมให้คงสถานะซ่อนและตอบ `503` หรือรับ `202` พร้อม retry ที่เชื่อถือได้ ห้ามคืน `PUBLISHED` โดยปริยาย
 
 ## 5. Verification & Trust Service
 
@@ -146,15 +146,15 @@ Gateway ส่ง `/v1/jobs/{job_id}/reports`, `/v1/admin/job-reviews/*`, `/v1/a
 | `GET /v1/admin/job-reviews/{review_id}` | `PLATFORM_ADMIN` | — | `200` ผลตรวจและสถานะ `OPEN\|DECISION_PENDING\|APPLIED\|STALE` |
 | `POST /v1/admin/job-reviews/{review_id}/decision` | `PLATFORM_ADMIN` | `decision: APPROVE\|REJECT`, `reason` เมื่อ reject | `202` รับผลตัดสินเพื่อส่งให้ Job Management |
 | `POST /v1/jobs/{job_id}/reports` | `STUDENT` | `reason_code`, `description` | `201` `{ report_id, status }`; นักศึกษา 1 คนรายงานงานเดิมได้ครั้งเดียว |
-| `GET /v1/admin/report-reviews` | `PLATFORM_ADMIN` | `status=OPEN`, pagination | `200` คิว Report ครบเกณฑ์ของ Tier 2/On-Site |
+| `GET /v1/admin/report-reviews` | `PLATFORM_ADMIN` | `status=OPEN`, pagination | `200` เคส Tier 1 หลังครบ 3 บัญชี และคิวสีเหลืองของ Tier 2/On-Site ตั้งแต่ Report แรก |
 | `GET /v1/admin/report-reviews/{review_id}` | `PLATFORM_ADMIN` | — | `200` ผลตรวจ Report และสถานะการตัดสินล่าสุด |
-| `POST /v1/admin/report-reviews/{review_id}/decision` | `PLATFORM_ADMIN` | `decision: SUSPEND\|DISMISS`, `reason` | `202` รับผลตัดสิน; SUSPEND แล้วแจ้ง Job Management |
+| `POST /v1/admin/report-reviews/{review_id}/decision` | `PLATFORM_ADMIN` | `decision: CONFIRM\|DISMISS`, `reason`; เมื่อ CONFIRM ระบุ `suspend_job: boolean` | `202` รับผลตัดสิน; CONFIRM ส่งหลักฐานให้ Identity ลด Tier 2 และส่งคำสั่งระงับงานเมื่อ `suspend_job=true` |
 | `GET /v1/admin/blacklist-keywords` | `PLATFORM_ADMIN` | pagination | `200` รายการคำต้องห้าม |
 | `POST /v1/admin/blacklist-keywords` | `PLATFORM_ADMIN` | `keyword`, `category` | `201` keyword |
 | `DELETE /v1/admin/blacklist-keywords/{keyword_id}` | `PLATFORM_ADMIN` | — | `204` |
 | `POST /v1/companies/{company_id}/on-site-verifications` | `SUPERVISOR` | `visited_on`, `result: PASS\|FAIL`, `notes` | `201` ผลตรวจ; PASS ส่งผลให้ Identity ตั้งวันหมดอายุ |
 
-`reason_code` ของ Report ใช้ `SCAM`, `MISREPRESENTATION`, `OTHER`; `description` อาจว่างได้ เฉพาะงาน `PUBLISHED` ที่นักศึกษาเข้าถึงได้จึงรายงานได้ เมื่อครบ 3 **บัญชีนักศึกษาที่ไม่ซ้ำกัน** งานทั่วไปถูกซ่อนเป็น `SUSPENDED` ส่วน Tier 2/On-Site เพิ่มคิว Admin โดยยังไม่ Auto-Suspend
+`reason_code` ของ Report ใช้ `SCAM`, `MISREPRESENTATION`, `OTHER`; `description` อาจว่างได้ เฉพาะงาน `PUBLISHED` ที่นักศึกษาเข้าถึงได้จึงรายงานได้ งาน Tier 1 ถูกซ่อนเป็น `SUSPENDED` และเปิดเคสให้ Admin ตรวจเมื่อครบ 3 **บัญชีนักศึกษาที่ไม่ซ้ำกัน** ส่วน Tier 2/On-Site เพิ่มคิวสีเหลืองตั้งแต่ Report แรกโดยยังไม่ Auto-Suspend และไม่ลด Tier จนกว่า Admin จะ CONFIRM รายงานว่ามีมูล; DISMISS ไม่ตัดสิทธิ์ Tier 2
 
 การยืนยัน On-Site ใช้กับบริษัทที่ผ่าน e-KYB และเป็น Tier 2 แล้วเท่านั้น; ผล PASS จึงเปิดป้าย Tier 2+ ตามอายุที่กำหนด
 
@@ -201,7 +201,7 @@ Internal API ใช้เฉพาะ service-to-service authentication ไม�
 | `GET /internal/v1/companies/{company_id}/hr-users/{user_id}/posting-context` | Identity → Job, Verification | `is_company_hr`, `kyb_status`, `tier`, `on_site_verified_until`, `hr_email_type: FREE\|CORPORATE\|OTHER` |
 | `GET /internal/v1/jobs/{job_id}/publication-context` | Job → Verification, Student | `company_id`, `status`, `version`; ใช้เช็กว่างานยังเผยแพร่และผูกกับบริษัทใด |
 | `GET /internal/v1/internships/{internship_id}/trust-outcome` | Student → Identity | `company_id`, `assessment_result`, `status`; ใช้ตรวจเงื่อนไขเลื่อน Tier |
-| `GET /internal/v1/companies/{company_id}/report-history` | Verification → Identity | `has_report: boolean`; Identity ตรวจข้อมูลปัจจุบันก่อนเลื่อน Tier 2 |
+| `GET /internal/v1/companies/{company_id}/report-history` | Verification → Identity | `has_confirmed_report: boolean`; Identity ตรวจข้อมูลปัจจุบันก่อนเลื่อน Tier 2 โดยไม่นับ Report ที่ยังไม่ยืนยันหรือถูกยกคำร้อง |
 
 การตรวจประกาศใช้ Event `JobSubmitted`/`JobEdited` และ `JobVerificationCompleted` ตามสถาปัตยกรรม การอนุมัติ Admin, Report, ผลฝึกงาน และ On-Site ส่งผลข้ามบริการตาม `docs/event-contract.md`; API นี้ไม่ถือว่า `202` คือการอัปเดตข้ามบริการเสร็จแล้ว
 
@@ -210,7 +210,6 @@ Internal API ใช้เฉพาะ service-to-service authentication ไม�
 1. การจัดเก็บไฟล์ KYB/Resume/Certificate และขนาดไฟล์สูงสุด
 2. ระยะเวลา access token และวิธี provisioning บัญชี Admin/Supervisor
 3. การยืนยันวันเริ่มฝึกงานจริงหลังรับเข้า; ข้อตกลงปัจจุบันคือบันทึกวันที่เริ่มเมื่อ HR รับนักศึกษา โดยห้ามกรอกวันย้อนหลัง
-4. รายละเอียดการอัปเกรด Tier 2 เมื่อมีการ Report ภายหลัง และการนับ “อนุมัติครบ 3 ครั้ง” ต่อประกาศหรือเวอร์ชัน
 
 การยืนยันประเด็นเหล่านี้ไม่เปลี่ยนกฎ Risk Score, การบังคับตรวจใหม่หลังแก้ประกาศ, การอนุญาตให้ผู้ที่ Fail รีวิว หรือเกณฑ์ Certificate อย่างน้อย 30 วัน
 

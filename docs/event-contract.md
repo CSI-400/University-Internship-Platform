@@ -50,7 +50,7 @@
 | `JobSuspensionRequested` | `jobs.suspension-requested` | Verification & Trust → Job Management | Report ครบเกณฑ์สำหรับ Tier 1 หรือ Admin สั่งระงับ |
 | `JobTransitionResolved` | `jobs.transition-resolved` | Job Management → Verification & Trust | ยืนยันว่าใช้หรือปฏิเสธ `JobReviewDecided`/`JobSuspensionRequested` |
 | `JobPublicationChanged` | `jobs.publication-changed` | Job Management → Identity, Verification & Trust | สถานะประกาศเปลี่ยนหลังตรวจ/ตัดสิน/ระงับ/ปิด |
-| `CompanyReportRecorded` | `companies.report-recorded` | Verification & Trust → Identity | บันทึก Report ใหม่จากนักศึกษาหนึ่งคนสำเร็จ |
+| `CompanyReportConfirmed` | `companies.report-confirmed` | Verification & Trust → Identity | Admin ยืนยันว่า Report มีมูล; ใช้ตัดสิทธิ์ Tier 2 |
 | `InternshipAssessmentRecorded` | `internships.assessment-recorded` | Student Experience → Identity | HR ประเมินการฝึกงานจบเป็น Pass/Fail |
 | `OnSiteVerificationPassed` | `companies.on-site-passed` | Verification & Trust → Identity | Supervisor ลงพื้นที่และยืนยันผ่าน |
 | `CompanyTrustChanged` | `companies.trust-changed` | Identity → Job Management, Verification & Trust | KYB/Tier/On-Site expiry เปลี่ยน; ใช้อัปเดตการแสดงผลเท่านั้น |
@@ -61,7 +61,7 @@ Identity และ Verification ต้องอ่าน posting context ปั�
 
 ### `JobSubmitted` และ `JobEdited`
 
-ทั้งสอง Event ใช้ payload เดียวกันและส่ง **snapshot ของเนื้อหาทั้งเวอร์ชัน** เพื่อให้ Verification ตรวจโดยไม่ต้องประกอบข้อมูลจากหลาย Event:
+ทั้งสอง Event ใช้ payload เดียวกันและส่ง **snapshot ของเนื้อหาปัจจุบัน** เพื่อให้ Verification ตรวจโดยไม่ต้องประกอบข้อมูลจากหลาย Event:
 
 ```json
 {
@@ -77,7 +77,7 @@ Identity และ Verification ต้องอ่าน posting context ปั�
 }
 ```
 
-`job_version` เป็นจำนวนเต็มบวกที่ Job Management เพิ่มเมื่อแก้เนื้อหา; `JobSubmitted` คือเวอร์ชันแรกที่ส่งตรวจ `JobEdited` คือเวอร์ชันใหม่หลังเคยส่งตรวจแล้ว Job Management ต้องบันทึก `VERIFYING` และซ่อนประกาศก่อนส่ง Event ตามลำดับธุรกรรมที่รับประกันด้วย Outbox
+`job_version` เป็นจำนวนเต็มบวกที่ Job Management เพิ่มเมื่อแก้เนื้อหา ใช้แยกผลตรวจที่มาช้า ไม่ใช่ระบบเก็บ/แสดงเนื้อหาเก่า; `JobSubmitted` คือการส่งตรวจครั้งแรก `JobEdited` คือการแก้หลังเคยส่งตรวจแล้ว Job Management ต้องแทนที่เนื้อหาปัจจุบัน บันทึก `VERIFYING` และซ่อนประกาศก่อนส่ง Event ตามลำดับธุรกรรมที่รับประกันด้วย Outbox
 
 ### `JobVerificationCompleted`
 
@@ -107,7 +107,7 @@ Job Management ใช้ Event นี้เมื่อ `job_version` ตรง�
 | `JobReviewDecided` | `review_id: UUID`, `job_id: UUID`, `job_version: integer`, `decision: APPROVE\|REJECT`, `admin_user_id: UUID`, `reason: string\|null` | Job Management ใช้ได้เฉพาะงานเวอร์ชันเดียวกันที่ยัง `PENDING_REVIEW`; approve → `PUBLISHED`, reject → `REJECTED` |
 | `JobSuspensionRequested` | `job_id: UUID`, `company_id: UUID`, `source: REPORT_THRESHOLD\|ADMIN_DECISION`, `report_review_id: UUID\|null`, `report_count: integer` | Job Management ระงับงานปัจจุบันทั้งรายการ ไม่อิง `job_version`; งานที่ถูกระงับต้องไม่ถูกผลตรวจเก่าตีพิมพ์ซ้ำ |
 | `JobTransitionResolved` | `request_event_id: UUID`, `job_id: UUID`, `outcome: APPLIED\|REJECTED`, `current_status: JobStatus`, `current_job_version: integer`, `reason: string\|null` | Job Management ส่งกลับทุกครั้งหลังรับ `JobReviewDecided` หรือ `JobSuspensionRequested`; Verification ใช้ปิด/เปิดคิวให้ตรงสถานะจริง |
-| `JobPublicationChanged` | `job_id: UUID`, `job_version: integer`, `company_id: UUID`, `previous_status: JobStatus`, `new_status: JobStatus`, `approval_method: AUTO\|ADMIN\|null` | ส่งเมื่อสถานะจริงเปลี่ยน; Identity ใช้เหตุการณ์เข้าสู่ `PUBLISHED` เพื่อประเมินเงื่อนไข Tier 2 |
+| `JobPublicationChanged` | `job_id: UUID`, `job_version: integer`, `company_id: UUID`, `previous_status: JobStatus`, `new_status: JobStatus`, `approval_method: AUTO\|ADMIN\|null` | ส่งเมื่อสถานะจริงเปลี่ยน; Identity นับ `job_id` ที่เข้าสู่ `PUBLISHED` ครั้งแรกเพียงครั้งเดียว ทั้ง AUTO และ ADMIN; การเผยแพร่ซ้ำงานเดิมไม่นับเพิ่ม |
 
 `JobSuspensionRequested` มีลำดับความสำคัญเหนือผลการตรวจที่ยังไม่เสร็จ: Job Management ตั้ง moderation hold และ `SUSPENDED` แบบ idempotent หากงาน `CLOSED` แล้วให้ `JobTransitionResolved.outcome = REJECTED` โดยไม่เปิดงานใหม่ การยกเลิก hold ต้องเป็นการตัดสินของ Admin ใน workflow ที่กำหนดเพิ่ม ไม่อนุญาตให้ HR แก้หรือ submit เพื่อเลี่ยงการระงับ
 
@@ -117,12 +117,12 @@ Job Management ใช้ Event นี้เมื่อ `job_version` ตรง�
 
 | Event | ฟิลด์ payload ที่ต้องมี | Consumer ทำอะไร |
 | --- | --- | --- |
-| `CompanyReportRecorded` | `report_id: UUID`, `job_id: UUID`, `company_id: UUID` | Identity บันทึกว่าบริษัทเคยถูก Report; Event หนึ่งครั้งต่อ Report ที่บันทึกสำเร็จ ไม่ส่ง student ID หรือรายละเอียดคำร้อง |
+| `CompanyReportConfirmed` | `report_review_id: UUID`, `job_id: UUID`, `company_id: UUID`, `confirmed_at: timestamp`, `admin_user_id: UUID` | Identity บันทึกหลักฐานที่ Admin ยืนยันว่ามีมูลและลด Tier 2 เป็น Tier 1; ไม่ออก Event นี้เมื่อ DISMISS |
 | `InternshipAssessmentRecorded` | `internship_id: UUID`, `company_id: UUID`, `assessment_result: PASS\|FAIL`, `start_date: date`, `end_date: date` | Identity ใช้ผล Pass สำหรับเงื่อนไข Tier 2; นับ `internship_id` ไม่ซ้ำ |
 | `OnSiteVerificationPassed` | `verification_id: UUID`, `company_id: UUID`, `visited_on: date`, `supervisor_user_id: UUID` | Identity กำหนด `on_site_verified_until` เป็นวันหมดอายุแบบ exclusive ที่ครบ 1 ปีปฏิทินจาก `visited_on` และเผยแพร่ Trust Change |
-| `CompanyTrustChanged` | `company_id: UUID`, `tier: 0\|1\|2`, `kyb_status: string`, `on_site_verified_until: date\|null`, `reason: KYB_APPROVED\|TIER_2_GRANTED\|ONSITE_PASSED\|ONSITE_EXPIRED` | Consumer อัปเดตข้อมูลแสดงผล; ต้องอ่าน Identity อีกครั้งเมื่อต้องตัดสินสิทธิ์ |
+| `CompanyTrustChanged` | `company_id: UUID`, `tier: 0\|1\|2`, `kyb_status: string`, `on_site_verified_until: date\|null`, `reason: KYB_APPROVED\|TIER_2_GRANTED\|ONSITE_PASSED\|ONSITE_EXPIRED\|CONFIRMED_REPORT` | Consumer อัปเดตข้อมูลแสดงผล; ต้องอ่าน Identity อีกครั้งเมื่อต้องตัดสินสิทธิ์ |
 
-`CompanyReportRecorded` ออกหลังบันทึก Report ใหม่จากผู้รายงานที่ไม่ซ้ำกัน ไม่ออกเมื่อ retry หรือส่ง Report ซ้ำ ก่อนเลื่อน Tier 2 Identity ต้องอ่าน `GET /internal/v1/companies/{company_id}/report-history` จาก Verification เพื่อป้องกันการเลื่อนขั้นระหว่างที่ Event ยังส่งมาไม่ถึง หาก Verification ไม่พร้อมให้คง Tier เดิมไว้ นโยบายลด Tier 2 เมื่อมี Report ภายหลังยังต้องให้ PM ตัดสิน
+Verification เก็บ Report ใหม่จากผู้รายงานที่ไม่ซ้ำกันในฐานข้อมูลของตน Tier 2/On-Site เข้าคิวสีเหลืองตั้งแต่ Report แรกโดยไม่ลด Tier อัตโนมัติ `CompanyReportConfirmed` ออกครั้งเดียวต่อการยืนยันของ Admin และเป็นหลักฐานที่ตัดสิทธิ์ Tier 2; Identity ลด Tier 2 เป็น Tier 1 และถ้ามี On-Site Badge ให้หยุดแสดง Badge เพราะ Tier 2+ ต้องมี Tier 2 ก่อน ก่อนเลื่อน Tier 2 Identity ต้องอ่าน `GET /internal/v1/companies/{company_id}/report-history` จาก Verification เพื่อป้องกันการเลื่อนขั้นระหว่างที่ Event ยังส่งมาไม่ถึง หาก Verification ไม่พร้อมให้คง Tier เดิมไว้
 
 `OnSiteVerificationPassed` ใช้เปิดป้ายเฉพาะบริษัทที่ผ่าน e-KYB และเป็น Tier 2; Identity ต้องตรวจสถานะปัจจุบันก่อนบันทึกวันหมดอายุ
 
@@ -138,8 +138,6 @@ Job Management ใช้ Event นี้เมื่อ `job_version` ตรง�
 
 ## 7. ข้อกำหนดที่ยังต้องตัดสินร่วมกัน
 
-- เงื่อนไข “ผ่านอนุมัติครบ 3 ครั้ง” สำหรับ Tier 2 ให้นับต่อ `job_id` หรือทุกการอนุมัติ `job_version` รวมถึง Auto-Approve หรือไม่; Event มีทั้ง `job_id`, `job_version`, `approval_method` เพื่อรองรับการตัดสิน
-- บริษัท Tier 2 ที่ถูก Report ใหม่ต้องลด Tier ทันทีหรือคง Tier จน Admin สรุปผล; `CompanyReportRecorded` เก็บข้อเท็จจริงไว้แล้ว
 - ชื่อ topic/queue จริง, retry limit, ระยะเก็บ Dead Letter Queue และวิธี replay ขึ้นกับ Broker ที่ทีมเลือก
 
 กฎ Blacklist, ช่วงคะแนน Risk Score, การซ่อนโพสต์หลังแก้ไข, สิทธิ์รีวิวผู้ที่ Fail และระยะฝึกขั้นต่ำ 30 วันเป็นข้อกำหนดที่ยืนยันแล้ว ไม่ขึ้นกับประเด็นเปิดข้างต้น
