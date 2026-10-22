@@ -1,0 +1,28 @@
+# 📌 Project Todo List (แบ่งงานตามสัปดาห์และตำแหน่ง)
+## 🏁 Week 1: Design, Setup & e-KYB Onboarding
+- [ ] **PM:** สรุป Requirement, กำหนดกฎ Risk Score, Blacklist และเงื่อนไขป้าย `On-Site` (กำหนดอายุ 1 ปี)
+- [ ] **SA (`Identity Service`):** ออกแบบ System Architecture, API Contract และพัฒาระบบ Auth (เพิ่ม Role `SUPERVISOR`)
+- [ ] **Junior (`Job Service`):** เซ็ตอัพโปรเจกต์ โครงสร้างโฟลเดอร์ และพัฒนาระบบฟอร์มสร้างประกาศงาน (แบบ Draft)
+- [ ] **Tester (`Student Service`):** ร่างโครงสร้าง Service ฝั่งนักศึกษา, เตรียมไฟล์ Mock Data และวางแผน Test Cases ครอบคลุมช่องโหว่
+
+## ⚙️ Week 2: Core Verification Engine & Job Management
+- [ ] **PM (`Verification Service`):** พัฒนาระบบสแกนคำต้องห้าม, คำนวณ Risk Score **(และระบบรีรันคะแนนเมื่อมีการ Edit โพสต์)**
+- [ ] **PM (`Verification Service`):** พัฒนาหน้า Supervisor Portal (ส่วนของการประเมินสถานที่จริง)
+- [ ] **SA (`Identity Service`):** ตรวจสอบ Code Review และดูแล API Gateway
+- [ ] **Junior (`Job Service`):** พัฒนาฟังก์ชันบันทึกประกาศงานฝั่ง HR และส่ง Event เข้า Queue
+- [ ] **Tester (`Student Service`):** พัฒนาหน้า UI ค้นหางาน (Search & Filter) และเขียน Unit Test ให้ PM
+
+## 🔍 Week 3: Student Experience & Auto-Suspend
+- [ ] **PM (`Verification Service`):** พัฒนาระบบ Auto-Suspend จากการกด Report **(พร้อมเงื่อนไขยกเว้นให้ Tier 2 ไปเข้าคิวสีเหลืองแทนเพื่อกันกลั่นแกล้ง)**
+- [ ] **SA (`Identity Service`):** พัฒนา Logic เลื่อนระดับบริษัท (Tier 2 Upgrade และการ Downgrade เมื่อป้าย On-Site หมดอายุ)
+- [ ] **Junior (`Job Service`):** พัฒนาระบบจัดการประกาศงานฝั่ง HR (Dashboard)
+- [ ] **Tester (`Student Service`):** พัฒนาระบบส่งใบสมัครฝึกงาน และเขียน Automated E2E Test
+
+## 🏆 Week 4: Verified Review, UAT & Final Polish
+- [ ] **Junior (`Job Service`):** พัฒนาปุ่มให้ HR กดประเมินนักศึกษาตอนจบฝึกงาน (Pass/Fail)
+- [ ] **Tester (`Student Service`):** พัฒนาระบบรีวิวบริษัท **(ปลดล็อกให้นักศึกษาที่ Fail รีวิวได้ด้วย แต่ติดป้ายกำกับ)**
+- [ ] **Tester (`Student Service`):** พัฒนาหน้า Supervisor Portal สำหรับกดออก E-Certificate **(เขียน Logic ดักจับเวลาฝึกงานขั้นต่ำ 30 วัน)**
+- [ ] **Tester (QA):** ดำเนินการทดสอบ **UAT เต็มรูปแบบ** (ครอบคลุมทั้ง 8 เคส) และสรุปรายงาน Bug
+- [ ] **SA (`Identity Service`):** ตรวจสอบ Security, จัดการ Error Handling, และปรับแต่ง Performance
+- [ ] **Junior & Tester:** ทำการ Debug และแก้ไข Bug (Bug Fixing) ร่วมกัน
+- [ ] **PM:** ควบคุมภาพรวมงาน (QC), เตรียมชุดข้อมูล Demo และทำสไลด์นำเสนอ

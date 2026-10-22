@@ -1,0 +1,147 @@
+# Event Payload Contract v1 — University Internship Platform
+
+**สถานะ:** แบบร่างร่วมสำหรับทีม, Week 1<br>
+**อ้างอิง:** `docs/architecture.md`, `docs/api-contract.md`, Verification Rules & Risk Scoring Engine
+
+เอกสารนี้กำหนดเหตุการณ์ที่ 4 Microservices แลกเปลี่ยนผ่าน Message Broker โดยไม่ผูกกับ RabbitMQ, Kafka หรือผลิตภัณฑ์ใดเป็นพิเศษ คำว่า `v1` ในที่นี้คือเวอร์ชัน schema ของ Event แยกจาก `/v1` ของ HTTP API
+
+## 1. รูปแบบ Event กลาง
+
+ทุกข้อความเป็น UTF-8 JSON มี envelope เดียวกัน:
+
+```json
+{
+  "event_id": "278b71d7-2754-4e4e-bcb6-95432d909764",
+  "event_type": "JobSubmitted",
+  "schema_version": 1,
+  "occurred_at": "2026-10-22T08:00:00Z",
+  "producer": "job-management",
+  "aggregate_type": "job",
+  "aggregate_id": "35dc16dd-8b03-40fd-8111-93f03af828c4",
+  "correlation_id": "d489d8bb-6697-40fd-8a7d-b5dbf5ee2982",
+  "causation_id": null,
+  "payload": {}
+}
+```
+
+| ฟิลด์ | กฎ |
+| --- | --- |
+| `event_id` | UUID ใหม่ต่อเหตุการณ์หนึ่งครั้ง; retry ต้องใช้ ID เดิม |
+| `event_type`, `schema_version` | ชื่อ Event แบบ PascalCase และเลขเวอร์ชัน schema; Consumer ปฏิเสธเวอร์ชันที่ไม่รองรับ |
+| `occurred_at` | เวลาเกิดเหตุการณ์จากบริการต้นทาง เป็น ISO 8601 UTC |
+| `producer` | `identity`, `job-management`, `verification-trust`, `student-experience` |
+| `aggregate_type`, `aggregate_id` | สิ่งที่เปลี่ยน เช่น `job`, `company`, `internship`; ใช้เป็น ordering key ถ้า Broker รองรับ |
+| `correlation_id` | ID ของคำขอหรือ workflow ต้นทาง ส่งต่อค่าเดิมตลอดสาย |
+| `causation_id` | `event_id` ของเหตุการณ์ที่ทำให้เกิด Event นี้; `null` สำหรับ Event จาก HTTP request โดยตรง |
+| `payload` | เนื้อหาเฉพาะ Event ตามตารางด้านล่าง; ใช้ `snake_case` และ UUID string |
+
+วันที่ธุรกิจเป็น `YYYY-MM-DD` ตาม `Asia/Bangkok` ส่วน timestamp ใน envelope เป็น UTC ไม่ส่ง password, token, เอกสาร KYB, Resume, เลขทะเบียนเต็ม หรือข้อมูลนักศึกษาที่ไม่จำเป็นใน Event
+
+## 2. รายการ Event และเส้นทาง
+
+ชื่อ routing ด้านล่างเป็นชื่อเชิงตรรกะ ทีมสามารถ map ไปยัง topic/queue ของ Broker ที่เลือกได้ Consumer แต่ละบริการใช้ subscription ของตนเอง ไม่ให้บริการสองตัวแย่งอ่านข้อความที่อีกตัวต้องได้รับ
+
+| Event (`schema_version: 1`) | Routing | Producer → Consumer | จุดที่ส่ง |
+| --- | --- | --- | --- |
+| `JobSubmitted` | `jobs.submitted` | Job Management → Verification & Trust | HR ส่ง `DRAFT` เข้าตรวจ |
+| `JobEdited` | `jobs.edited` | Job Management → Verification & Trust | HR แก้งานที่เคยส่งตรวจ |
+| `JobVerificationCompleted` | `jobs.verification-completed` | Verification & Trust → Job Management | ตรวจ Blacklist และ Risk Score เสร็จ |
+| `JobReviewDecided` | `jobs.review-decided` | Verification & Trust → Job Management | Admin ตัดสินงาน `PENDING_REVIEW` |
+| `JobSuspensionRequested` | `jobs.suspension-requested` | Verification & Trust → Job Management | Report ครบเกณฑ์สำหรับ Tier 1 หรือ Admin สั่งระงับ |
+| `JobTransitionResolved` | `jobs.transition-resolved` | Job Management → Verification & Trust | ยืนยันว่าใช้หรือปฏิเสธ `JobReviewDecided`/`JobSuspensionRequested` |
+| `JobPublicationChanged` | `jobs.publication-changed` | Job Management → Identity, Verification & Trust | สถานะประกาศเปลี่ยนหลังตรวจ/ตัดสิน/ระงับ/ปิด |
+| `CompanyReportRecorded` | `companies.report-recorded` | Verification & Trust → Identity | บันทึก Report ใหม่จากนักศึกษาหนึ่งคนสำเร็จ |
+| `InternshipAssessmentRecorded` | `internships.assessment-recorded` | Student Experience → Identity | HR ประเมินการฝึกงานจบเป็น Pass/Fail |
+| `OnSiteVerificationPassed` | `companies.on-site-passed` | Verification & Trust → Identity | Supervisor ลงพื้นที่และยืนยันผ่าน |
+| `CompanyTrustChanged` | `companies.trust-changed` | Identity → Job Management, Verification & Trust | KYB/Tier/On-Site expiry เปลี่ยน; ใช้อัปเดตการแสดงผลเท่านั้น |
+
+Identity และ Verification ต้องอ่าน posting context ปัจจุบันผ่าน Internal API ตอนส่งตรวจและคำนวณคะแนน `CompanyTrustChanged` อาจมาช้าหรือสลับลำดับ จึงใช้ cache จาก Event เป็นแหล่งตัดสินสิทธิ์หรือ Risk Score โดยลำพังไม่ได้
+
+## 3. Payload การตรวจประกาศ
+
+### `JobSubmitted` และ `JobEdited`
+
+ทั้งสอง Event ใช้ payload เดียวกันและส่ง **snapshot ของเนื้อหาทั้งเวอร์ชัน** เพื่อให้ Verification ตรวจโดยไม่ต้องประกอบข้อมูลจากหลาย Event:
+
+```json
+{
+  "job_id": "35dc16dd-8b03-40fd-8111-93f03af828c4",
+  "job_version": 2,
+  "company_id": "e5581fd8-9d1b-4320-afce-386ecba3be2d",
+  "hr_user_id": "fb77908b-8858-47c0-a705-1587865cc371",
+  "job_title": "Software Engineer Intern",
+  "description": "รายละเอียดงานและสิ่งที่จะได้เรียนรู้...",
+  "category": "TECH_IT",
+  "benefits": ["มีพี่เลี้ยง"],
+  "allowance": { "amount": 300, "currency": "THB", "period": "DAY" }
+}
+```
+
+`job_version` เป็นจำนวนเต็มบวกที่ Job Management เพิ่มเมื่อแก้เนื้อหา; `JobSubmitted` คือเวอร์ชันแรกที่ส่งตรวจ `JobEdited` คือเวอร์ชันใหม่หลังเคยส่งตรวจแล้ว Job Management ต้องบันทึก `VERIFYING` และซ่อนประกาศก่อนส่ง Event ตามลำดับธุรกรรมที่รับประกันด้วย Outbox
+
+### `JobVerificationCompleted`
+
+```json
+{
+  "job_id": "35dc16dd-8b03-40fd-8111-93f03af828c4",
+  "job_version": 2,
+  "company_id": "e5581fd8-9d1b-4320-afce-386ecba3be2d",
+  "verdict": "PENDING_REVIEW",
+  "risk_score": 30,
+  "matched_keywords": [],
+  "score_reasons": [
+    { "rule_code": "R-01", "delta": 30 }
+  ],
+  "review_id": "ee13b1b2-15ac-44a0-95c4-ed18bff76047"
+}
+```
+
+`verdict` ใช้ `PUBLISHED`, `PENDING_REVIEW`, `AUTO_REJECTED` เท่านั้น; `review_id` ต้องมีเมื่อ `PENDING_REVIEW` และเป็น `null` ในกรณีอื่น `risk_score` เป็นจำนวนเต็มที่รวม rule impacts; Blacklist สามารถบังคับ `AUTO_REJECTED` แม้คะแนนต่ำกว่า 70 โดยบันทึกคำที่พบใน `matched_keywords` และยังคำนวณคะแนนเพื่อการตรวจสอบย้อนหลัง
+
+Job Management ใช้ Event นี้เมื่อ `job_version` ตรงเวอร์ชันล่าสุดและงานยังเป็น `VERIFYING` เท่านั้น ผลเก่าหรือผลที่มาหลัง `SUSPENDED`/`CLOSED` ต้องไม่ทำให้งานกลับไป `PUBLISHED`
+
+## 4. Payload การตัดสินและการระงับ
+
+| Event | ฟิลด์ payload ที่ต้องมี | กฎการใช้ |
+| --- | --- | --- |
+| `JobReviewDecided` | `review_id: UUID`, `job_id: UUID`, `job_version: integer`, `decision: APPROVE\|REJECT`, `admin_user_id: UUID`, `reason: string\|null` | Job Management ใช้ได้เฉพาะงานเวอร์ชันเดียวกันที่ยัง `PENDING_REVIEW`; approve → `PUBLISHED`, reject → `REJECTED` |
+| `JobSuspensionRequested` | `job_id: UUID`, `company_id: UUID`, `source: REPORT_THRESHOLD\|ADMIN_DECISION`, `report_review_id: UUID\|null`, `report_count: integer` | Job Management ระงับงานปัจจุบันทั้งรายการ ไม่อิง `job_version`; งานที่ถูกระงับต้องไม่ถูกผลตรวจเก่าตีพิมพ์ซ้ำ |
+| `JobTransitionResolved` | `request_event_id: UUID`, `job_id: UUID`, `outcome: APPLIED\|REJECTED`, `current_status: JobStatus`, `current_job_version: integer`, `reason: string\|null` | Job Management ส่งกลับทุกครั้งหลังรับ `JobReviewDecided` หรือ `JobSuspensionRequested`; Verification ใช้ปิด/เปิดคิวให้ตรงสถานะจริง |
+| `JobPublicationChanged` | `job_id: UUID`, `job_version: integer`, `company_id: UUID`, `previous_status: JobStatus`, `new_status: JobStatus`, `approval_method: AUTO\|ADMIN\|null` | ส่งเมื่อสถานะจริงเปลี่ยน; Identity ใช้เหตุการณ์เข้าสู่ `PUBLISHED` เพื่อประเมินเงื่อนไข Tier 2 |
+
+`JobSuspensionRequested` มีลำดับความสำคัญเหนือผลการตรวจที่ยังไม่เสร็จ: Job Management ตั้ง moderation hold และ `SUSPENDED` แบบ idempotent หากงาน `CLOSED` แล้วให้ `JobTransitionResolved.outcome = REJECTED` โดยไม่เปิดงานใหม่ การยกเลิก hold ต้องเป็นการตัดสินของ Admin ใน workflow ที่กำหนดเพิ่ม ไม่อนุญาตให้ HR แก้หรือ submit เพื่อเลี่ยงการระงับ
+
+เมื่อ `JobReviewDecided` อ้างเวอร์ชันเก่า Job Management ตอบ `JobTransitionResolved` ด้วย `REJECTED` และ `reason: "STALE_JOB_VERSION"`; Verification ต้องไม่แสดงว่าอนุมัติสำเร็จ แม้ HTTP endpoint สำหรับ Admin เคยตอบ `202` แล้ว
+
+## 5. Payload ความน่าเชื่อถือบริษัท
+
+| Event | ฟิลด์ payload ที่ต้องมี | Consumer ทำอะไร |
+| --- | --- | --- |
+| `CompanyReportRecorded` | `report_id: UUID`, `job_id: UUID`, `company_id: UUID` | Identity บันทึกว่าบริษัทเคยถูก Report; Event หนึ่งครั้งต่อ Report ที่บันทึกสำเร็จ ไม่ส่ง student ID หรือรายละเอียดคำร้อง |
+| `InternshipAssessmentRecorded` | `internship_id: UUID`, `company_id: UUID`, `assessment_result: PASS\|FAIL`, `start_date: date`, `end_date: date` | Identity ใช้ผล Pass สำหรับเงื่อนไข Tier 2; นับ `internship_id` ไม่ซ้ำ |
+| `OnSiteVerificationPassed` | `verification_id: UUID`, `company_id: UUID`, `visited_on: date`, `supervisor_user_id: UUID` | Identity กำหนด `on_site_verified_until` เป็นวันหมดอายุแบบ exclusive ที่ครบ 1 ปีปฏิทินจาก `visited_on` และเผยแพร่ Trust Change |
+| `CompanyTrustChanged` | `company_id: UUID`, `tier: 0\|1\|2`, `kyb_status: string`, `on_site_verified_until: date\|null`, `reason: KYB_APPROVED\|TIER_2_GRANTED\|ONSITE_PASSED\|ONSITE_EXPIRED` | Consumer อัปเดตข้อมูลแสดงผล; ต้องอ่าน Identity อีกครั้งเมื่อต้องตัดสินสิทธิ์ |
+
+`CompanyReportRecorded` ออกหลังบันทึก Report ใหม่จากผู้รายงานที่ไม่ซ้ำกัน ไม่ออกเมื่อ retry หรือส่ง Report ซ้ำ ก่อนเลื่อน Tier 2 Identity ต้องอ่าน `GET /internal/v1/companies/{company_id}/report-history` จาก Verification เพื่อป้องกันการเลื่อนขั้นระหว่างที่ Event ยังส่งมาไม่ถึง หาก Verification ไม่พร้อมให้คง Tier เดิมไว้ นโยบายลด Tier 2 เมื่อมี Report ภายหลังยังต้องให้ PM ตัดสิน
+
+`OnSiteVerificationPassed` ใช้เปิดป้ายเฉพาะบริษัทที่ผ่าน e-KYB และเป็น Tier 2; Identity ต้องตรวจสถานะปัจจุบันก่อนบันทึกวันหมดอายุ
+
+## 6. การส่งซ้ำ ลำดับ และกรณีล้มเหลว
+
+1. **Persist + publish:** Producer บันทึกข้อมูลธุรกิจและ outbox record ใน transaction เดียวกัน แล้ว publisher ส่งจาก Outbox ไป Broker; HTTP `202` หมายถึงบันทึกงานและ Outbox สำเร็จ ไม่จำเป็นต้องรอ Consumer
+2. **At-least-once:** Broker อาจส่ง Event ซ้ำ Consumer เก็บ `event_id` ที่ประมวลผลแล้วใน inbox/processed-events และอัปเดตข้อมูลกับ inbox ใน transaction เดียวกัน
+3. **Ordering:** ไม่สมมติว่าทุก Event ทั้งระบบเรียงลำดับ; ผลตรวจประกาศต้องเทียบ `job_version`, ผล On-Site ต้องเทียบวันที่และสถานะปัจจุบัน, การเลื่อน Tier ต้องนับ ID ต้นทางไม่ซ้ำ
+4. **Retry:** ความผิดพลาดชั่วคราว เช่น Identity/DB ไม่พร้อม ให้ retry แบบเพิ่มช่วงรอ จำกัดจำนวนครั้ง แล้วส่ง Dead Letter Queue พร้อม `event_id` และเหตุผลเพื่อให้ทีมตรวจและ replay
+5. **Invalid schema:** Consumer ไม่เปลี่ยนสถานะธุรกิจหาก payload ขาดฟิลด์, enum ผิด หรือ `schema_version` ไม่รองรับ; ส่ง Dead Letter Queue และแจ้งผู้ดูแล
+6. **Safe visibility:** งาน `VERIFYING`, `SUSPENDED`, `CLOSED`, `AUTO_REJECTED`, `REJECTED` และ `PENDING_REVIEW` ไม่อยู่ใน public search; ผลตรวจซ้ำ/ช้าหรือ Event ผิดลำดับต้องไม่ทำให้งานเหล่านี้เผยแพร่โดยไม่ผ่าน guard ของ Job Management
+7. **Schema evolution:** เพิ่ม optional field ได้ใน `schema_version: 1` โดย Consumer ต้องมองข้าม field ที่ไม่รู้จัก; การเปลี่ยนความหมาย, ลบฟิลด์บังคับ หรือเปลี่ยนชนิดต้องเพิ่มเวอร์ชันและรองรับช่วงเปลี่ยนผ่าน
+
+## 7. ข้อกำหนดที่ยังต้องตัดสินร่วมกัน
+
+- เงื่อนไข “ผ่านอนุมัติครบ 3 ครั้ง” สำหรับ Tier 2 ให้นับต่อ `job_id` หรือทุกการอนุมัติ `job_version` รวมถึง Auto-Approve หรือไม่; Event มีทั้ง `job_id`, `job_version`, `approval_method` เพื่อรองรับการตัดสิน
+- บริษัท Tier 2 ที่ถูก Report ใหม่ต้องลด Tier ทันทีหรือคง Tier จน Admin สรุปผล; `CompanyReportRecorded` เก็บข้อเท็จจริงไว้แล้ว
+- ชื่อ topic/queue จริง, retry limit, ระยะเก็บ Dead Letter Queue และวิธี replay ขึ้นกับ Broker ที่ทีมเลือก
+
+กฎ Blacklist, ช่วงคะแนน Risk Score, การซ่อนโพสต์หลังแก้ไข, สิทธิ์รีวิวผู้ที่ Fail และระยะฝึกขั้นต่ำ 30 วันเป็นข้อกำหนดที่ยืนยันแล้ว ไม่ขึ้นกับประเด็นเปิดข้างต้น
+
+ตาราง Outbox/Inbox และหลักฐานที่ Consumer บันทึกอยู่ใน `docs/database-schema.md`
