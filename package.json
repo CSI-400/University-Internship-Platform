@@ -9,6 +9,11 @@
     "apps/*",
     "services/*"
   ],
+  "scripts": {
+    "setup:local": "node scripts/setup-local.mjs",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",
     "@nestjs/testing": "^12.0.0",

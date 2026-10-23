@@ -8,3 +8,7 @@ coverage/
 *.log
 .npm-cache/
 .npm/
+*.tsbuildinfo
+**/src/generated/prisma/
+apps/web/next-env.d.ts
+.local/

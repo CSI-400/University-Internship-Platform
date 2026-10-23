@@ -9,6 +9,6 @@
 | 3 | [API Contract v1](api-contract.md) | HTTP routes, request/response, สิทธิ์ และสถานะ |
 | 4 | [Event Contract v1](event-contract.md) | Event payload, routing, retry และ DLQ |
 | 5 | [Database Schema](database-schema.md) | ตารางและข้อบังคับของฐานข้อมูลแยกตาม service |
-| 6 | [Project Setup Handoff](project-setup.md) | โครงสร้างโฟลเดอร์, dependencies และงาน config ที่ต้องทำก่อนเริ่มโค้ด |
+| 6 | [Project Setup Handoff](project-setup.md) | วิธีรัน starter ด้วย Docker Compose, โครงสร้าง workspace และงานที่แต่ละทีมเริ่มต่อ |
 
 `docs/` เป็นเอกสารออกแบบและ contract สำหรับทีม ส่วนไฟล์ที่ root เป็นภาพรวมและข้อกำหนดธุรกิจที่ PM ดูแล เมื่อเปลี่ยนกฎหรือ contract ให้ตรวจเอกสารและ diagram ที่อ้างถึงร่วมกันก่อนพัฒนา

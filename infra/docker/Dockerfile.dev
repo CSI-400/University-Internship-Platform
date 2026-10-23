@@ -1,0 +1,16 @@
+FROM node:24-bookworm
+
+WORKDIR /workspace
+
+COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/package.json
+COPY apps/api-gateway/package.json apps/api-gateway/package.json
+COPY services/identity/package.json services/identity/package.json
+COPY services/job-management/package.json services/job-management/package.json
+COPY services/verification-trust/package.json services/verification-trust/package.json
+COPY services/student-experience/package.json services/student-experience/package.json
+COPY services/ekyb-mock/package.json services/ekyb-mock/package.json
+
+RUN npm ci --no-audit --no-fund
+
+COPY . .

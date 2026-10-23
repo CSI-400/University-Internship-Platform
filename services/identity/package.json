@@ -2,6 +2,15 @@
   "name": "@uip/identity",
   "version": "0.1.0",
   "private": true,
+  "scripts": {
+    "start:dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "db:validate": "prisma validate",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev"
+  },
   "dependencies": {
     "@nestjs/common": "^12.0.0",
     "@nestjs/config": "^12.0.0",
@@ -20,6 +29,7 @@
     "rxjs": "^7.0.0"
   },
   "devDependencies": {
+    "dotenv": "^18.0.3",
     "prisma": "^7.10.0"
   }
 }

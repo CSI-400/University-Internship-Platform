@@ -1,0 +1,263 @@
+name: university-internship-platform
+
+x-app-health: &app-health
+  test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:'+process.env.PORT+(process.env.HEALTH_PATH||'/health'),r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 30s
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: uip_admin
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Copy .env.example to .env}
+      POSTGRES_DB: postgres
+      IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?Copy .env.example to .env}
+      JOB_DB_PASSWORD: ${JOB_DB_PASSWORD:?Copy .env.example to .env}
+      VERIFICATION_DB_PASSWORD: ${VERIFICATION_DB_PASSWORD:?Copy .env.example to .env}
+      STUDENT_DB_PASSWORD: ${STUDENT_DB_PASSWORD:?Copy .env.example to .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U uip_admin -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4.3-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Copy .env.example to .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Copy .env.example to .env}
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq-init:
+    image: uip-dev:local
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev
+    working_dir: /workspace
+    command: ["node", "infra/rabbitmq/setup.mjs"]
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Copy .env.example to .env}:${RABBITMQ_PASSWORD:?Copy .env.example to .env}@rabbitmq:5672
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: "no"
+
+  ekyb-mock:
+    image: uip-dev:local
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev
+    working_dir: /workspace
+    init: true
+    restart: unless-stopped
+    healthcheck: *app-health
+    command: ["npm", "run", "start:dev", "-w", "@uip/ekyb-mock"]
+    environment:
+      PORT: "3006"
+      TSC_WATCHFILE: UsePollingFs
+    volumes:
+      - ./services/ekyb-mock:/workspace/services/ekyb-mock
+
+  identity:
+    image: uip-dev:local
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev
+    working_dir: /workspace
+    init: true
+    restart: unless-stopped
+    healthcheck: *app-health
+    command: ["npm", "run", "start:dev", "-w", "@uip/identity"]
+    environment:
+      PORT: "3002"
+      TSC_WATCHFILE: UsePollingFs
+      DATABASE_URL: postgresql://uip_identity:${IDENTITY_DB_PASSWORD:?Copy .env.example to .env}@postgres:5432/identity_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Copy .env.example to .env}:${RABBITMQ_PASSWORD:?Copy .env.example to .env}@rabbitmq:5672
+      EKYB_MOCK_URL: http://ekyb-mock:3006
+      KYB_FILES_DIR: /data/kyb
+      JWT_PRIVATE_KEY_PATH: /run/keys/private.pem
+      JWT_PUBLIC_KEY_PATH: /run/keys/public.pem
+      JWT_ISSUER: ${JWT_ISSUER:?Copy .env.example to .env}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?Copy .env.example to .env}
+      JWT_ACCESS_TTL_SECONDS: "3600"
+    volumes:
+      - ./services/identity:/workspace/services/identity
+      - kyb_files:/data/kyb
+      - ./.local/keys/private.pem:/run/keys/private.pem:ro
+      - ./.local/keys/public.pem:/run/keys/public.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
+      ekyb-mock:
+        condition: service_healthy
+
+  job-management:
+    image: uip-dev:local
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev
+    working_dir: /workspace
+    init: true
+    restart: unless-stopped
+    healthcheck: *app-health
+    command: ["npm", "run", "start:dev", "-w", "@uip/job-management"]
+    environment:
+      PORT: "3003"
+      TSC_WATCHFILE: UsePollingFs
+      DATABASE_URL: postgresql://uip_job:${JOB_DB_PASSWORD:?Copy .env.example to .env}@postgres:5432/job_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Copy .env.example to .env}:${RABBITMQ_PASSWORD:?Copy .env.example to .env}@rabbitmq:5672
+      JWT_PUBLIC_KEY_PATH: /run/keys/public.pem
+      JWT_ISSUER: ${JWT_ISSUER:?Copy .env.example to .env}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?Copy .env.example to .env}
+    volumes:
+      - ./services/job-management:/workspace/services/job-management
+      - ./.local/keys/public.pem:/run/keys/public.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
+
+  verification-trust:
+    image: uip-dev:local
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev
+    working_dir: /workspace
+    init: true
+    restart: unless-stopped
+    healthcheck: *app-health
+    command: ["npm", "run", "start:dev", "-w", "@uip/verification-trust"]
+    environment:
+      PORT: "3004"
+      TSC_WATCHFILE: UsePollingFs
+      DATABASE_URL: postgresql://uip_verification:${VERIFICATION_DB_PASSWORD:?Copy .env.example to .env}@postgres:5432/verification_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Copy .env.example to .env}:${RABBITMQ_PASSWORD:?Copy .env.example to .env}@rabbitmq:5672
+      JWT_PUBLIC_KEY_PATH: /run/keys/public.pem
+      JWT_ISSUER: ${JWT_ISSUER:?Copy .env.example to .env}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?Copy .env.example to .env}
+    volumes:
+      - ./services/verification-trust:/workspace/services/verification-trust
+      - ./.local/keys/public.pem:/run/keys/public.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
+
+  student-experience:
+    image: uip-dev:local
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev
+    working_dir: /workspace
+    init: true
+    restart: unless-stopped
+    healthcheck: *app-health
+    command: ["npm", "run", "start:dev", "-w", "@uip/student-experience"]
+    environment:
+      PORT: "3005"
+      TSC_WATCHFILE: UsePollingFs
+      DATABASE_URL: postgresql://uip_student:${STUDENT_DB_PASSWORD:?Copy .env.example to .env}@postgres:5432/student_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Copy .env.example to .env}:${RABBITMQ_PASSWORD:?Copy .env.example to .env}@rabbitmq:5672
+      STUDENT_FILES_DIR: /data/student
+      JWT_PUBLIC_KEY_PATH: /run/keys/public.pem
+      JWT_ISSUER: ${JWT_ISSUER:?Copy .env.example to .env}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?Copy .env.example to .env}
+    volumes:
+      - ./services/student-experience:/workspace/services/student-experience
+      - student_files:/data/student
+      - ./.local/keys/public.pem:/run/keys/public.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
+
+  api-gateway:
+    image: uip-dev:local
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev
+    working_dir: /workspace
+    init: true
+    restart: unless-stopped
+    healthcheck: *app-health
+    command: ["npm", "run", "start:dev", "-w", "@uip/api-gateway"]
+    environment:
+      PORT: "3001"
+      WEB_ORIGIN: http://localhost:3000
+      TSC_WATCHFILE: UsePollingFs
+      IDENTITY_URL: http://identity:3002
+      JOB_MANAGEMENT_URL: http://job-management:3003
+      VERIFICATION_TRUST_URL: http://verification-trust:3004
+      STUDENT_EXPERIENCE_URL: http://student-experience:3005
+      JWT_PUBLIC_KEY_PATH: /run/keys/public.pem
+      JWT_ISSUER: ${JWT_ISSUER:?Copy .env.example to .env}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?Copy .env.example to .env}
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - ./apps/api-gateway:/workspace/apps/api-gateway
+      - ./.local/keys/public.pem:/run/keys/public.pem:ro
+    depends_on:
+      identity:
+        condition: service_healthy
+      job-management:
+        condition: service_healthy
+      verification-trust:
+        condition: service_healthy
+      student-experience:
+        condition: service_healthy
+
+  web:
+    image: uip-dev:local
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev
+    working_dir: /workspace
+    init: true
+    restart: unless-stopped
+    healthcheck: *app-health
+    command: ["npm", "run", "dev", "-w", "@uip/web"]
+    environment:
+      PORT: "3000"
+      HEALTH_PATH: /
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/v1
+      INTERNAL_API_BASE_URL: http://api-gateway:3001/v1
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./apps/web:/workspace/apps/web
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  kyb_files:
+  student_files:
