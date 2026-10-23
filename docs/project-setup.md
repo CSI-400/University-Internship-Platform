@@ -139,4 +139,4 @@ docker compose ps
 5. เจ้าของ Event เพิ่ม Outbox publisher และ Inbox consumer ตาม [Event Contract](event-contract.md); topology ถูกสร้างโดย `rabbitmq-init` แล้ว แต่ starter ยังไม่ส่งหรือรับ Event
 6. Tester ใช้ Mocha ทดสอบ unit/API integration และ UAT 9 เคสตาม [README หลัก](../README.md)
 
-เครื่องที่ใช้จัดทำ starter นี้ไม่มี Docker จึงตรวจได้เพียง YAML, TypeScript, Next/Nest build และ Prisma schema validation; ทีมต้องรัน `docker compose up --build -d` และตรวจ PostgreSQL/RabbitMQ บนเครื่องที่มี Docker ก่อนเริ่มงานร่วมกัน
+ตรวจบนเครื่องที่มี Docker แล้ว: `docker compose config --quiet` และ `docker compose up --build -d` ผ่าน; Web, Gateway, 4 services, e-KYB Mock, PostgreSQL และ RabbitMQ ขึ้นสถานะ healthy โดย Web `http://localhost:3000/` และ Gateway `http://localhost:3001/health` ตอบ HTTP 200 แต่ละคนต้องรัน `setup:local` และ Compose บนเครื่องตนเองเมื่อพัฒนาแบบ local; health check ปัจจุบันยังไม่ยืนยัน business logic หรือการเชื่อมต่อจริงของทุก service
