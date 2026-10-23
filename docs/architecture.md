@@ -1,6 +1,6 @@
 # System Architecture — University Internship Platform
 
-**สถานะ:** แบบร่างสำหรับงาน SA, Week 1<br>
+**สถานะ:** เอกสารออกแบบสำหรับทีม ใช้อ้างอิงต่อเนื่องและปรับเมื่อขอบเขตหรือสถาปัตยกรรมเปลี่ยน<br>
 **ลำดับอ่าน:** [สารบัญเอกสาร](README.md) → เอกสารนี้ → [Design Diagrams](diagrams.md)<br>
 **เอกสารอ้างอิง:** [README หลัก](../README.md), [Verification Rules & Risk Score](<../Verification Rules & Risk Sco.txt>), [TODO](../TODO.txt)
 
@@ -23,6 +23,16 @@
 | ไฟล์ | private Docker volume แยก Identity กับ Student Experience; DB เก็บ storage key/metadata และดาวน์โหลดผ่าน API ที่ตรวจสิทธิ์ |
 | การทดสอบ | Mocha สำหรับ unit/API integration และ UAT ตามกรณีใน [README หลัก](../README.md) |
 | การรันเดโม | Docker Compose ตามขอบเขตใน [README หลัก](../README.md) |
+
+### ขอบเขตฟีเจอร์เชิงธุรกิจในเดโม 4 สัปดาห์
+
+| รายการจาก README หลัก | ขอบเขตที่ออกแบบใน v1 |
+| --- | --- |
+| Featured / Boosted Job | มีสถานะ `is_featured` เพื่อแสดงป้ายและเรียงงานที่เผยแพร่แล้วไว้ก่อนงานทั่วไปในหน้าค้นหา; ข้อมูลเดโมกำหนดสถานะนี้จาก seed ที่ทีมควบคุม ไม่ให้ HR ส่งค่ามาเอง ยังไม่มีการซื้อหรือระบบเปิดสิทธิ์แบบชำระเงิน |
+| Express KYB & Fast-Track Review | เป็นแนวคิดรายได้ใน README แต่แผน 4 สัปดาห์และ UAT ยังไม่กำหนดราคา สิทธิ์ หรือเกณฑ์คิวพิเศษ; v1 ใช้คิว KYB และคิวตรวจงานปกติตาม Risk Score ไม่ให้การเร่งคิวข้ามการตรวจของ Admin |
+| HR Pro Subscription | README ระบุเป็น Future Phase; ไม่มี subscription, payment หรือ Talent Pool Search ใน v1 |
+
+หากทีมจะเพิ่มการซื้อ Featured หรือคิว Express ภายหลัง ต้องกำหนดสิทธิ์ผู้เปิดใช้ ระยะเวลา และเงื่อนไขชำระเงินก่อนเพิ่ม API/ตารางสำหรับการขาย โดยไม่เปลี่ยนกฎ KYB และ Risk Score ที่ PM กำหนด
 
 ## 2. ภาพรวมส่วนประกอบ
 

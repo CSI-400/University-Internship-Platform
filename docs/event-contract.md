@@ -1,6 +1,6 @@
 # Event Payload Contract v1 — University Internship Platform
 
-**สถานะ:** แบบร่างร่วมสำหรับทีม, Week 1<br>
+**สถานะ:** แบบร่างสัญญา Event v1 สำหรับทีม ปรับเมื่อข้อตกลง Event เปลี่ยน<br>
 **ลำดับอ่าน:** [สารบัญเอกสาร](README.md) → [API Contract](api-contract.md) → เอกสารนี้ → [Database Schema](database-schema.md)<br>
 **อ้างอิง:** [System Architecture](architecture.md), [API Contract](api-contract.md), [Verification Rules & Risk Score](<../Verification Rules & Risk Sco.txt>)
 

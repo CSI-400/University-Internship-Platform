@@ -1,6 +1,6 @@
 # Design Diagrams — University Internship Platform
 
-**สถานะ:** แบบออกแบบก่อนลงโค้ดสำหรับเดโม 4 สัปดาห์<br>
+**สถานะ:** แผนภาพอ้างอิงสำหรับเดโม 4 สัปดาห์ ปรับตาม contract ที่ทีมตกลง<br>
 **ลำดับอ่าน:** [สารบัญเอกสาร](README.md) → [System Architecture](architecture.md) → เอกสารนี้<br>
 **อ้างอิง:** [README หลัก](../README.md), [TODO](../TODO.txt), [API Contract](api-contract.md), [Event Contract](event-contract.md), [Database Schema](database-schema.md)
 
@@ -320,6 +320,7 @@ erDiagram
         UUID company_id
         UUID created_by_hr_id
         string status
+        bool is_featured
         int current_version
         bool moderation_hold
     }
@@ -332,7 +333,7 @@ erDiagram
     }
 ```
 
-`JOBS` เก็บเนื้อหาปัจจุบันเท่านั้น; `current_version` ใช้กันผลตรวจเก่า ไม่ใช่ระบบแสดงประกาศเวอร์ชันเก่า
+`JOBS` เก็บเนื้อหาปัจจุบันเท่านั้น; `is_featured` ใช้แสดงป้ายและเรียงงานที่ `PUBLISHED` ในเดโม โดยไม่ข้ามการตรวจงาน; `current_version` ใช้กันผลตรวจเก่า ไม่ใช่ระบบแสดงประกาศเวอร์ชันเก่า
 
 ### 4.3 Verification and Trust DB
 

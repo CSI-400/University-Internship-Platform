@@ -1,4 +1,4 @@
-# Project Setup Handoff — Week 1
+# Project Setup Handoff — University Internship Platform
 
 **สถานะ:** มี starter ที่ build ได้สำหรับ Web, Gateway และ 5 services พร้อม Docker Compose, PostgreSQL 4 ฐาน, RabbitMQ topology และ Prisma config ขั้นต่ำ; ยังไม่มี business logic, domain models หรือ migration<br>
 **ลำดับอ่าน:** [สารบัญเอกสาร](README.md) → [Database Schema](database-schema.md) → เอกสารนี้<br>
@@ -96,22 +96,48 @@ export function ExampleChart() {
 
 ## 3. เริ่มระบบบนเครื่องทีม
 
-ต้องมี Node.js 24/npm 11 และ Docker Desktop หรือ Docker Engine ที่ใช้ Compose V2 ได้ เปิด Docker daemon ก่อนรันคำสั่ง จาก root ของ repo:
+ต้องมี Node.js 24/npm 11 และ Docker Desktop หรือ Docker Engine ที่ใช้ Compose V2 ได้ เปิด Docker daemon ก่อนรันคำสั่งจาก root ของ repo
+
+### ครั้งแรกบนเครื่องแต่ละคน
 
 ```powershell
 npm.cmd run setup:local
-docker compose config
+docker compose config --quiet
 docker compose up --build -d
 docker compose ps
 ```
 
 `setup:local` สร้าง `.env` จาก `.env.example` และคู่กุญแจ JWT ES256 ใน `.local/keys/` เมื่อยังไม่มีไฟล์ โดยไม่เขียนทับไฟล์เดิม ทั้งสองตำแหน่งถูก ignore จาก Git ใช้ค่ารหัสผ่านตัวอย่างเฉพาะเครื่องเดโมในวงปิดและแก้ใน `.env` ก่อนแชร์เครื่อง เมื่อเปลี่ยนรหัสฐานข้อมูลหลังเคยเริ่มระบบแล้ว ต้องปรับรหัสในฐานข้อมูลเดิมด้วย เพราะสคริปต์ init ทำงานเฉพาะตอน volume ว่าง
 
+### ทุกครั้งที่กลับมาทำงาน
+
+เปิด Docker Desktop ให้ Engine ทำงานก่อน แล้วรันจาก root ของ repo:
+
+```powershell
+docker compose up -d
+docker compose ps
+```
+
+เปิดเว็บที่ <http://localhost:3000> และตรวจ Gateway ที่ <http://localhost:3001/health> ไม่ต้องรัน `setup:local` หรือ `npm ci` ซ้ำทุกวัน หาก `package.json` หรือ `package-lock.json` เปลี่ยน ให้รัน `docker compose up --build -d` เพื่อสร้าง image ใหม่ เมื่อเลิกงานใช้ `docker compose down` ได้ โดย named volumes ยังเก็บข้อมูลฐานข้อมูลและไฟล์ไว้ ห้ามใช้ `docker compose down -v` เว้นแต่ตั้งใจลบข้อมูล local
+
+### `npm run dev` และ `node` ใช้ตอนไหน
+
+Compose เรียกคำสั่งพัฒนาให้ทุก container อยู่แล้ว: Web ใช้ `npm run dev -w @uip/web` (`next dev`), ส่วน Gateway และ 5 services ใช้ `npm run start:dev -w @uip/<ชื่อ-workspace>` (`nest start --watch`) เมื่อแก้ไฟล์ source จะ reload ใน container จึงไม่ต้องเปิด terminal มารัน npm เพิ่ม และที่ root ไม่มี script `npm run dev`
+
+หากต้องการรัน workspace เองนอก Compose ให้ติดตั้ง dependencies ด้วย `npm.cmd ci` ครั้งแรก แล้วใช้คำสั่งจาก root ของ repo เช่น:
+
+```powershell
+npm.cmd run dev -w @uip/web
+npm.cmd run start:dev -w @uip/api-gateway
+npm.cmd run start:dev -w @uip/identity
+```
+
+รันแต่ละโปรแกรมใน terminal แยกกัน และหยุด container ของโปรแกรมเดียวกันก่อนเพื่อไม่ให้ชน port; backend ที่รันเองต้องมีค่า environment และการเชื่อมต่อ PostgreSQL/RabbitMQ ให้ถูกต้อง `npm run start` ของ NestJS ใช้ `node dist/main.js` หลัง build แล้ว ไม่ใช่คำสั่งหลักสำหรับพัฒนา หากใช้ Compose และต้องการดูข้อความจากโปรแกรม ให้ใช้ `docker compose logs -f web` หรือเปลี่ยน `web` เป็นชื่อ service ที่ต้องการ
+
 - Web: <http://localhost:3000> และ Gateway health: <http://localhost:3001/health>
 - RabbitMQ Management: <http://localhost:15672> ใช้บัญชีจาก `.env`
 - PostgreSQL `5432` และ RabbitMQ AMQP `5672` เปิดเฉพาะ `127.0.0.1`; 4 services และ e-KYB Mock อยู่ในเครือข่าย Compose ภายใน
-- `docker compose down` หยุดระบบโดยเก็บข้อมูลใน named volumes ไว้; `docker compose down -v` ลบข้อมูลเดโมและไฟล์ส่วนตัวทั้งหมดใน volumes
-- Code ของแต่ละ workspace mount เข้า container สำหรับแก้แล้ว reload; เมื่อแก้ dependencies ให้ rebuild image ด้วย `docker compose up --build -d`
+- Code ของแต่ละ workspace mount เข้า container สำหรับแก้แล้ว reload
 
 หากพัฒนานอก Docker ใช้ Node.js 24 และ npm 11 ตาม root `package.json`, รัน `npm.cmd ci`, `npm.cmd run typecheck` และ `npm.cmd run build` ได้ ส่วน PostgreSQL/RabbitMQ ต้องรันแยกและตั้ง environment ให้ตรงกับ service; `node_modules/`, `.next/` และ `dist/` ไม่อยู่ใน Git
 
@@ -138,5 +164,13 @@ docker compose ps
 4. เมื่อเติม model แล้ว ตรวจจาก container เช่น `docker compose exec identity npm run db:validate -w @uip/identity`, ต่อด้วย `db:generate` และ `db:migrate` โดยเปลี่ยน workspace ตาม service
 5. เจ้าของ Event เพิ่ม Outbox publisher และ Inbox consumer ตาม [Event Contract](event-contract.md); topology ถูกสร้างโดย `rabbitmq-init` แล้ว แต่ starter ยังไม่ส่งหรือรับ Event
 6. Tester ใช้ Mocha ทดสอบ unit/API integration และ UAT 9 เคสตาม [README หลัก](../README.md)
+
+### ลำดับลงมือทำเพื่อคุมงาน 4 สัปดาห์
+
+- **Week 1:** งาน SA คือ Auth และ Role `SUPERVISOR` ใน Identity ตาม [TODO ของ PM](../TODO.txt) ควบคู่กับงานออกแบบ/setup; การมี RabbitMQ topology ยังไม่หมายความว่าต้องเขียนทุก Event ก่อน Auth
+- **Week 2:** ทำสายงาน `JobSubmitted`/`JobEdited` → ตรวจ Risk Score → เผยแพร่หรือส่งคิว Admin ให้ครบก่อน โดยใช้ Outbox, `processed_events`, publisher confirm และ retry/DLQ กับสายงานนี้จริง เพื่อไม่ให้ Event หายหรือผลตรวจซ้ำเผยแพร่งานผิด
+- **Week 3–4:** นำรูปแบบเดียวกันไปใช้กับ Report, Tier และผลฝึกงานตาม UAT; ทดสอบ Event ซ้ำ/มาช้าและการกู้จาก DLQ ก่อนสรุปงาน ไม่ต้องสร้าง framework สำหรับ Event ที่ไม่มีใน [Event Contract](event-contract.md)
+
+`Idempotency-Key` ใช้กับ endpoint ที่ระบุใน [API Contract](api-contract.md) ไม่ต้องทำกับทุก HTTP request; กฎ retry และข้อบังคับความถูกต้องใน Event Contract ยังใช้กับ Event ที่เริ่มส่งจริงแต่ละสายงาน การแบ่งทำเป็นช่วงคือการจัดลำดับ implementation ไม่ใช่การตัดกฎความปลอดภัยของข้อมูลออก
 
 ตรวจบนเครื่องที่มี Docker แล้ว: `docker compose config --quiet` และ `docker compose up --build -d` ผ่าน; Web, Gateway, 4 services, e-KYB Mock, PostgreSQL และ RabbitMQ ขึ้นสถานะ healthy โดย Web `http://localhost:3000/` และ Gateway `http://localhost:3001/health` ตอบ HTTP 200 แต่ละคนต้องรัน `setup:local` และ Compose บนเครื่องตนเองเมื่อพัฒนาแบบ local; health check ปัจจุบันยังไม่ยืนยัน business logic หรือการเชื่อมต่อจริงของทุก service

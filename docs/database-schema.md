@@ -1,6 +1,6 @@
 # Database Schema — University Internship Platform
 
-**สถานะ:** Logical schema บน PostgreSQL สำหรับงาน SA, Week 1; ยังไม่ใช่ migration จริง<br>
+**สถานะ:** Logical schema บน PostgreSQL สำหรับทีม; ยังไม่ใช่ migration จริง และปรับเมื่อข้อตกลงข้อมูลเปลี่ยน<br>
 **ลำดับอ่าน:** [สารบัญเอกสาร](README.md) → [Event Contract](event-contract.md) → เอกสารนี้ → [Project Setup Handoff](project-setup.md)<br>
 **อ้างอิง:** `docs/architecture.md`, `docs/api-contract.md`, `docs/event-contract.md`
 
@@ -55,14 +55,14 @@
 
 | ตาราง | คอลัมน์สำคัญ | Key และข้อบังคับ |
 | --- | --- | --- |
-| `jobs` | `id UUID`, `company_id UUID`, `created_by_hr_id UUID`, `job_title VARCHAR(240)`, `description TEXT`, `category`, `benefits JSON`, `allowance_amount DECIMAL(12,2) NULL`, `allowance_currency CHAR(3) NULL`, `allowance_period NULL`, `status`, `current_version INTEGER`, `submitted_at TIMESTAMP_UTC NULL`, `risk_score INTEGER NULL`, `moderation_hold BOOLEAN`, `closed_at TIMESTAMP_UTC NULL` | PK `id`; เก็บเฉพาะเนื้อหาปัจจุบัน; `current_version >= 1` เป็นเลขภายในกันผลตรวจเก่า ไม่เก็บหรือแสดงเนื้อหาเก่า; `moderation_hold = true` ห้ามเข้าสู่ `PUBLISHED`; `company_id` และ HR ID เป็น cross-service reference ไม่มี FK |
+| `jobs` | `id UUID`, `company_id UUID`, `created_by_hr_id UUID`, `job_title VARCHAR(240)`, `description TEXT`, `category`, `benefits JSON`, `allowance_amount DECIMAL(12,2) NULL`, `allowance_currency CHAR(3) NULL`, `allowance_period NULL`, `is_featured BOOLEAN DEFAULT false`, `status`, `current_version INTEGER`, `submitted_at TIMESTAMP_UTC NULL`, `risk_score INTEGER NULL`, `moderation_hold BOOLEAN`, `closed_at TIMESTAMP_UTC NULL` | PK `id`; เก็บเฉพาะเนื้อหาปัจจุบัน; `is_featured` ให้ seed ของเดโมที่ทีมควบคุมตั้งค่า ไม่รับค่าจาก HR; `current_version >= 1` เป็นเลขภายในกันผลตรวจเก่า ไม่เก็บหรือแสดงเนื้อหาเก่า; `moderation_hold = true` ห้ามเข้าสู่ `PUBLISHED`; `company_id` และ HR ID เป็น cross-service reference ไม่มี FK |
 | `job_status_history` | `id UUID`, `job_id UUID`, `job_version INTEGER`, `previous_status`, `new_status`, `source_event_id UUID NULL`, `actor_user_id UUID NULL`, `reason TEXT NULL`, `changed_at TIMESTAMP_UTC` | PK `id`; FK job; UNIQUE `source_event_id` เมื่อมีค่า; ใช้ audit การเผยแพร่ การปฏิเสธ และการระงับ |
 
 `POST /v1/jobs` สร้าง `jobs` ที่ `current_version = 1` `PATCH` แทนที่เนื้อหาปัจจุบันและเพิ่ม `current_version`; ถ้าเคยส่งตรวจให้เปลี่ยน `status = VERIFYING`, ซ่อนงาน และบันทึก `JobEdited` ลง Outbox ใน transaction เดียวกัน ไม่แสดงเนื้อหาเดิมระหว่างรอผล งานที่ `SUSPENDED`/`CLOSED` ห้ามแก้หรือส่งตรวจใหม่
 
 เมื่อรับ `JobVerificationCompleted` ให้ update แบบมีเงื่อนไข `current_version = job_version AND status = VERIFYING AND moderation_hold = false` เท่านั้น หากไม่ตรงให้ถือเป็นผลเก่าและไม่เผยแพร่ เมื่อรับ `JobSuspensionRequested` ให้ตั้ง `moderation_hold = true` พร้อม `status = SUSPENDED` ก่อนตอบ `JobTransitionResolved`; ผลตรวจที่มาภายหลังเปลี่ยนกลับไม่ได้
 
-ดัชนีหลัก: `jobs(status, updated_at DESC)` สำหรับ public search (`status = PUBLISHED` เท่านั้น), `jobs(company_id, updated_at DESC)` สำหรับ HR dashboard; `q` ในเดโมใช้ `ILIKE` กับ `job_title`/`description` โดยกรอง `status = PUBLISHED` ก่อน และจำกัดผลด้วย pagination หากข้อมูลโตค่อยประเมิน full-text index ภายหลัง
+ดัชนีหลัก: `jobs(status, is_featured DESC, updated_at DESC)` สำหรับ public search (`status = PUBLISHED` เท่านั้น), `jobs(company_id, updated_at DESC)` สำหรับ HR dashboard; งาน Featured ขึ้นก่อนงานทั่วไปภายในผลค้นหาเดียวกัน แต่สถานะนี้ไม่ทำให้ข้ามการตรวจ KYB/Risk Score; `q` ในเดโมใช้ `ILIKE` กับ `job_title`/`description` โดยกรอง `status = PUBLISHED` ก่อน และจำกัดผลด้วย pagination หากข้อมูลโตค่อยประเมิน full-text index ภายหลัง
 
 ## 4. Verification & Trust DB
 
@@ -82,7 +82,7 @@ Verification ตรวจงานโดยบันทึก `job_verifications
 
 เมื่อมี Report ใหม่ให้ insert `reports` ก่อนนับจำนวนผู้รายงาน; หากครบ 3 คนและเป็น Tier 1 ให้เปิด `report_review_cases` และบันทึก `moderation_actions` พร้อม `JobSuspensionRequested` ใน Outbox transaction เดียวกัน; Tier 2/On-Site เปิดเคสตั้งแต่ Report แรก การตรวจ Tier ปัจจุบันต้องอ่าน Identity ไม่ใช้ cache อย่างเดียว เมื่อ Admin ตัดสิน CONFIRM ให้บันทึก `report_review_decisions` และ `CompanyReportConfirmed` ใน Outbox transaction เดียวกัน; ถ้าสั่งระงับงานด้วยให้ส่ง `JobSuspensionRequested` แยกต่างหาก
 
-ดัชนีหลัก: `job_verifications(job_id, job_version)` UNIQUE, `job_review_cases(status, created_at)`, `reports(job_id, reporter_student_id)` UNIQUE, `reports(company_id, reported_at)`, `report_review_cases(status, created_at)`, `on_site_verifications(company_id, visited_on DESC)`
+ดัชนีหลัก: `job_verifications(job_id, job_version)` UNIQUE, `job_verifications(verdict, verified_at DESC)` สำหรับตารางผลตรวจ Admin, `job_review_cases(status, created_at)`, `reports(job_id, reporter_student_id)` UNIQUE, `reports(company_id, reported_at)`, `report_review_cases(status, created_at)`, `on_site_verifications(company_id, visited_on DESC)`
 
 ## 5. Student Experience DB
 

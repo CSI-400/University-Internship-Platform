@@ -1,6 +1,6 @@
 # API Contract v1 — University Internship Platform
 
-**สถานะ:** แบบร่างร่วมสำหรับทีม, Week 1<br>
+**สถานะ:** แบบร่างสัญญา API v1 สำหรับทีม ปรับเมื่อข้อตกลง API เปลี่ยน<br>
 **ลำดับอ่าน:** [สารบัญเอกสาร](README.md) → [System Architecture](architecture.md) → เอกสารนี้ → [Event Contract](event-contract.md)<br>
 **อ้างอิง:** [System Architecture](architecture.md), [README หลัก](../README.md), [Verification Rules & Risk Score](<../Verification Rules & Risk Sco.txt>)
 
@@ -58,7 +58,7 @@ Blacklist ใน `job_title` หรือ `description` ทำให้ `AUTO_RE
 
 ## 3. Identity & Company KYB Service
 
-Gateway ส่ง route `/v1/auth/*`, `/v1/me`, `/v1/companies/*` และ `/v1/admin/kyb-submissions/*` ไปบริการนี้
+Gateway ส่ง `/v1/auth/*`, `/v1/me`, `/v1/companies/me`, `/v1/companies/me/kyb-submissions/*`, `/v1/companies/{company_id}/public-profile` และ `/v1/admin/kyb-submissions/*` ไปบริการนี้; route รีวิวและ On-Site ใต้ `/v1/companies/{company_id}/...` เป็นของบริการอื่นตามข้อ 5–6
 
 | Method + path | ผู้เรียก | Request | Success |
 | --- | --- | --- | --- |
@@ -66,7 +66,8 @@ Gateway ส่ง route `/v1/auth/*`, `/v1/me`, `/v1/companies/*` และ `/v1
 | `POST /v1/auth/companies/register` | Public | `email`, `password`, `display_name`, `company_name` | `201` `{ user, company }`; สร้าง HR และ Tier 0 |
 | `POST /v1/auth/login` | Public | `email`, `password` | `200` `{ access_token, token_type: "Bearer", expires_in, user }` |
 | `GET /v1/me` | ทุกบทบาท | — | `200` `User`; HR ได้ `company_id` ที่ระบบผูกไว้ |
-| `GET /v1/companies/me` | `COMPANY_HR` | — | `200` `Company` |
+| `GET /v1/companies/me` | `COMPANY_HR` | — | `200` `Company` พร้อม `tier_progress` สำหรับแถบความคืบหน้า Tier 2 |
+| `GET /v1/companies/{company_id}/public-profile` | Public | — | `200` ชื่อบริษัท, Tier และวันหมดอายุ On-Site ที่ใช้แสดงป้าย; เปิดเฉพาะบริษัทที่ผ่าน KYB |
 | `POST /v1/companies/me/kyb-submissions` | `COMPANY_HR` | `multipart/form-data`: `registration_number`, `document` | `202` `KybSubmission`; สถานะเริ่ม `PENDING_EXTERNAL` |
 | `GET /v1/companies/me/kyb-submissions/{submission_id}` | HR เจ้าของบริษัท | — | `200` `KybSubmission` |
 | `GET /v1/admin/kyb-submissions?status=PENDING_ADMIN` | `PLATFORM_ADMIN` | filter + pagination | `200` รายการ `KybSubmission` |
@@ -79,13 +80,20 @@ Gateway ส่ง route `/v1/auth/*`, `/v1/me`, `/v1/companies/*` และ `/v1
 
 `User` ที่ส่งกลับจาก register/login/me มีฟิลด์ `id`, `email`, `display_name`, `role`, `company_id` (`null` สำหรับผู้ที่ไม่ใช่ HR) และ `created_at`; ไม่ส่ง password หรือ password hash
 
+`GET /v1/companies/me` เพิ่ม `tier_progress: { published_unique_jobs, pass_results, has_confirmed_report }` โดย Identity คำนวณจากหลักฐานที่ไม่ซ้ำกันในฐานตน; งานที่แก้หรือเผยแพร่ซ้ำไม่เพิ่มยอด Public profile ไม่ส่งเลขทะเบียน เอกสาร KYB หรือรายละเอียด Report และให้แสดง On-Site Badge เฉพาะเมื่อ `tier = 2` และยังไม่หมดอายุ
+
 ```json
 {
   "id": "e5581fd8-9d1b-4320-afce-386ecba3be2d",
   "name": "Example Co., Ltd.",
   "kyb_status": "VERIFIED",
   "tier": 1,
-  "on_site_verified_until": null
+  "on_site_verified_until": null,
+  "tier_progress": {
+    "published_unique_jobs": 2,
+    "pass_results": 0,
+    "has_confirmed_report": false
+  }
 }
 ```
 
@@ -102,11 +110,11 @@ Gateway ส่ง route `/v1/auth/*`, `/v1/me`, `/v1/companies/*` และ `/v1
 
 ## 4. Job Management Service
 
-Gateway ส่ง `/v1/jobs` (ยกเว้น subpath `/reports` และ `/applications`) ไปบริการนี้
+Gateway ส่ง `/v1/jobs` (ยกเว้น subpath `/reports` และ `/applications`) และ `/v1/companies/me/jobs` ไปบริการนี้
 
 | Method + path | ผู้เรียก | Request | Success |
 | --- | --- | --- | --- |
-| `GET /v1/jobs` | Public | `category`, `q`, pagination | `200` เฉพาะ Job ที่ `PUBLISHED` |
+| `GET /v1/jobs` | Public | `category`, `q`, pagination | `200` เฉพาะ Job ที่ `PUBLISHED`; งาน Featured มาก่อนภายในผลลัพธ์ |
 | `GET /v1/jobs/{job_id}` | Public / HR เจ้าของ | — | `200` Job; คนทั่วไปเห็นเฉพาะ `PUBLISHED` |
 | `GET /v1/companies/me/jobs` | `COMPANY_HR` | `status`, pagination | `200` งานทั้งหมดของบริษัทตน |
 | `POST /v1/jobs` | `COMPANY_HR` | `job_title`, `description`, `category`, `benefits`, `allowance` | `201` Job สถานะ `DRAFT` |
@@ -125,6 +133,7 @@ Gateway ส่ง `/v1/jobs` (ยกเว้น subpath `/reports` และ `/
   "category": "TECH_IT",
   "benefits": ["มีพี่เลี้ยง"],
   "allowance": { "amount": 300, "currency": "THB", "period": "DAY" },
+  "is_featured": false,
   "status": "VERIFYING",
   "version": 2,
   "risk_score": null,
@@ -133,7 +142,7 @@ Gateway ส่ง `/v1/jobs` (ยกเว้น subpath `/reports` และ `/
 }
 ```
 
-`category` ใช้ `TECH_IT`, `BUSINESS_MARKETING`, `CORPORATE_SERVICES`; `benefits` เป็น array ซึ่งอาจว่าง และ `allowance` เป็น object หรือ `null` เพื่อให้ R-03 ตรวจได้แน่นอน `risk_score` เป็นคะแนนล่าสุดที่ตรวจเสร็จหรือ `null` ขณะ `VERIFYING`; ไม่รับ `status`, `company_id`, `risk_score`, `version` จาก client ในคำขอสร้าง/แก้
+`category` ใช้ `TECH_IT`, `BUSINESS_MARKETING`, `CORPORATE_SERVICES`; `benefits` เป็น array ซึ่งอาจว่าง และ `allowance` เป็น object หรือ `null` เพื่อให้ R-03 ตรวจได้แน่นอน `risk_score` เป็นคะแนนล่าสุดที่ตรวจเสร็จหรือ `null` ขณะ `VERIFYING`; ไม่รับ `status`, `company_id`, `risk_score`, `version`, `is_featured` จาก client ในคำขอสร้าง/แก้ `is_featured` เป็นสถานะสำหรับป้ายและการเรียงผลค้นหาเฉพาะงานที่ `PUBLISHED`; ข้อมูลเดโมกำหนดจาก seed ที่ทีมควบคุม ยังไม่มี API ซื้อหรือเปิดสิทธิ์ Featured ใน v1
 
 `submit` ใช้กับ `DRAFT` เท่านั้น; งานที่ `SUSPENDED` หรือ `CLOSED` แก้หรือส่งตรวจใหม่ไม่ได้ (`409`) งานที่ `PENDING_REVIEW`, `PUBLISHED`, `AUTO_REJECTED` หรือ `REJECTED` แก้ไขได้แล้วเข้าสู่ `VERIFYING` เพื่อคัดกรองเนื้อหาปัจจุบัน หากแก้ระหว่าง `VERIFYING` ต้องเพิ่ม `version` และไม่ใช้ผลตรวจของเลขเดิม `version` เป็นเลขลำดับภายในสำหรับ concurrency และผลตรวจที่มาช้า ไม่ใช่ระบบเก็บหรือแสดงเนื้อหาเก่า
 
@@ -141,10 +150,11 @@ Job Management ตรวจสถานะ e-KYB และความเป็�
 
 ## 5. Verification & Trust Service
 
-Gateway ส่ง `/v1/jobs/{job_id}/reports`, `/v1/admin/job-reviews/*`, `/v1/admin/report-reviews/*`, `/v1/admin/blacklist-keywords/*` และ `/v1/companies/{company_id}/on-site-verifications` ไปบริการนี้
+Gateway ส่ง `/v1/jobs/{job_id}/reports`, `/v1/admin/job-verifications`, `/v1/admin/job-reviews/*`, `/v1/admin/report-reviews/*`, `/v1/admin/blacklist-keywords/*` และ `/v1/companies/{company_id}/on-site-verifications` ไปบริการนี้
 
 | Method + path | ผู้เรียก | Request | Success |
 | --- | --- | --- | --- |
+| `GET /v1/admin/job-verifications` | `PLATFORM_ADMIN` | `verdict=PUBLISHED\|PENDING_REVIEW\|AUTO_REJECTED`, pagination | `200` ประวัติผลตรวจทุกสี พร้อม `job_id`, `job_version`, `risk_score`, `matched_keywords`, `score_reasons`, `verified_at`; อ่านอย่างเดียว |
 | `GET /v1/admin/job-reviews` | `PLATFORM_ADMIN` | `status=OPEN`, pagination | `200` คิวงานคะแนนปานกลาง พร้อมคะแนนและเหตุผล |
 | `GET /v1/admin/job-reviews/{review_id}` | `PLATFORM_ADMIN` | — | `200` ผลตรวจและสถานะ `OPEN\|DECISION_PENDING\|APPLIED\|STALE` |
 | `POST /v1/admin/job-reviews/{review_id}/decision` | `PLATFORM_ADMIN` | `decision: APPROVE\|REJECT`, `reason` เมื่อ reject | `202` รับผลตัดสินเพื่อส่งให้ Job Management |
@@ -161,11 +171,11 @@ Gateway ส่ง `/v1/jobs/{job_id}/reports`, `/v1/admin/job-reviews/*`, `/v1/a
 
 การยืนยัน On-Site ใช้กับบริษัทที่ผ่าน e-KYB และเป็น Tier 2 แล้วเท่านั้น; ผล PASS จึงเปิดป้าย Tier 2+ ตามอายุที่กำหนด
 
-ผลตรวจงานที่ Admin เห็นต้องมี `job_id`, `job_version`, `risk_score`, `matched_keywords`, `score_reasons`, `status` การตัดสินต้องอ้าง `job_version` ปัจจุบัน หากงานถูกแก้ก่อน Admin ตัดสิน ให้ตอบ `409 JOB_VERSION_CONFLICT` เพื่อไม่อนุมัติเนื้อหาเก่า
+หน้า Traffic-Light ใช้ `job-verifications` เพื่อดูผลเขียว/เหลือง/แดงย้อนหลัง; ปุ่ม Approve/Reject แสดงเฉพาะรายการ `job-reviews` ที่ยังรอ Admin ไม่เปิดให้ตัดสินผลเขียวที่ Auto-Approve หรือผลแดงที่ Auto-Reject ผลตรวจงานที่ Admin เห็นต้องมี `job_id`, `job_version`, `risk_score`, `matched_keywords`, `score_reasons`, `status` การตัดสินต้องอ้าง `job_version` ปัจจุบัน หากงานถูกแก้ก่อน Admin ตัดสิน ให้ตอบ `409 JOB_VERSION_CONFLICT` เพื่อไม่อนุมัติเนื้อหาเก่า
 
 ## 6. Student Experience Service
 
-Gateway ส่ง `/v1/students/me/*`, `/v1/jobs/{job_id}/applications`, `/v1/applications/*`, `/v1/internships/*` และ `/v1/companies/{company_id}/reviews` ไปบริการนี้
+Gateway ส่ง `/v1/students/me/*`, `/v1/resumes/{resume_id}/file`, `/v1/jobs/{job_id}/applications`, `/v1/applications/*`, `/v1/internships/*`, `/v1/supervisor/certificate-requests`, `/v1/companies/{company_id}/reviews` และ `/v1/companies/{company_id}/review-summary` ไปบริการนี้
 
 | Method + path | ผู้เรียก | Request | Success |
 | --- | --- | --- | --- |
@@ -178,7 +188,10 @@ Gateway ส่ง `/v1/students/me/*`, `/v1/jobs/{job_id}/applications`, `/v1/ap
 | `GET /v1/jobs/{job_id}/applications` | HR เจ้าของงาน | pagination | `200` ใบสมัครของงานนั้น |
 | `POST /v1/applications/{application_id}/decision` | HR เจ้าของงาน | `decision: ACCEPT\|REJECT`; เมื่อ ACCEPT ส่ง `start_date` | `200` Application; ACCEPT สร้าง Internship |
 | `POST /v1/internships/{internship_id}/assessment` | HR บริษัทผู้รับฝึก | `result: PASS\|FAIL`, `end_date` | `200` Internship สถานะ `COMPLETED` |
+| `GET /v1/companies/{company_id}/review-summary` | Public | — | `200` `{ average_rating: number\|null, review_count: number }` จากรีวิวของผู้ฝึกจริง; ไม่มีรีวิวให้ `null` และ `0` |
+| `GET /v1/companies/{company_id}/reviews` | Public | pagination | `200` รีวิวพร้อมคะแนนและป้าย `assessment_result` Pass/Fail |
 | `POST /v1/companies/{company_id}/reviews` | `STUDENT` ผู้ฝึกจริง | `internship_id`, `rating` (1–5), `comment` | `201` Review พร้อม `assessment_result` |
+| `GET /v1/supervisor/certificate-requests` | `SUPERVISOR` | pagination | `200` Internship ที่ `COMPLETED` และ `PASS` ซึ่งรอการตัดสิน พร้อม `start_date`, `end_date`, `eligible` และเหตุผลหากยังไม่ครบ 30 วัน |
 | `POST /v1/internships/{internship_id}/certificate-approval` | `SUPERVISOR` | `decision: APPROVE\|REJECT`, `reason` เมื่อ reject | `200` ผลอนุมัติ; APPROVE สร้าง E-Certificate และ Badge |
 | `GET /v1/internships/{internship_id}/certificate` | Student เจ้าของ / Supervisor | — | `200` PDF เฉพาะใบที่อนุมัติแล้ว |
 
