@@ -1,17 +1,19 @@
 # API Contract v1 — University Internship Platform
 
 **สถานะ:** แบบร่างร่วมสำหรับทีม, Week 1<br>
-**อ้างอิง:** `docs/architecture.md`, `README.md`, `Verification Rules & Risk Sco.txt`
+**ลำดับอ่าน:** [สารบัญเอกสาร](README.md) → [System Architecture](architecture.md) → เอกสารนี้ → [Event Contract](event-contract.md)<br>
+**อ้างอิง:** [System Architecture](architecture.md), [README หลัก](../README.md), [Verification Rules & Risk Score](<../Verification Rules & Risk Sco.txt>)
 
-เอกสารนี้กำหนด HTTP API ผ่าน Gateway สำหรับ Web UI และ API ภายในที่ต้องใช้ข้ามบริการ ยังไม่กำหนดภาษาโปรแกรม, Gateway, Broker หรือฐานข้อมูล การเปลี่ยนชื่อฟิลด์/สถานะหลังเริ่มพัฒนาต้องแก้เอกสารนี้ร่วมกับผู้พัฒนาทุกบริการ
+เอกสารนี้กำหนด HTTP API ผ่าน NestJS API Gateway สำหรับ Next.js Web UI และ API ภายในที่ต้องใช้ข้ามบริการ Gateway และ 4 Services ใช้ NestJS + TypeScript (`.ts`); แต่ละ Service เชื่อม PostgreSQL ผ่าน Prisma ORM และแลกเปลี่ยน Event ผ่าน RabbitMQ ตาม `docs/architecture.md` การเปลี่ยนชื่อฟิลด์/สถานะหลังเริ่มพัฒนาต้องแก้เอกสารนี้ร่วมกับผู้พัฒนาทุกบริการ
 
 ## 1. รูปแบบร่วม
 
 - Base path: `/v1`; ส่งและรับ JSON ด้วย `Content-Type: application/json` ยกเว้น endpoint อัปโหลดและดาวน์โหลดไฟล์
+- Web UI เรียก API ผ่าน Gateway; Gateway ส่งต่อไปยัง NestJS Service เจ้าของข้อมูล และไม่อ่านฐานข้อมูลของ Service อื่นโดยตรง
 - ชื่อฟิลด์ใช้ `snake_case`; ID เป็น string แบบ UUID; เวลาเป็น ISO 8601 UTC; วันที่เป็น `YYYY-MM-DD` และตีความวันตามเขตเวลา `Asia/Bangkok` สำหรับกฎ 30 วันและอายุป้าย 1 ปี
-- Endpoint ที่ต้องล็อกอินใช้ `Authorization: Bearer <access_token>` โดย token มี `sub` (user ID), `role`, `iat`, `exp`; บริการปลายทางต้องตรวจ token และสิทธิ์เจ้าของข้อมูลอีกชั้น
-- บัญชี `PLATFORM_ADMIN` และ `SUPERVISOR` ต้องสร้างโดยผู้ดูแลระบบ ไม่มี public sign-up สำหรับสองบทบาทนี้
-- คำขอแก้ข้อมูลที่อาจถูกส่งซ้ำ (`submit`, `decision`, `report`, `certificate approval`) รับ `Idempotency-Key` เพื่อคืนผลเดิมเมื่อส่งซ้ำด้วย key เดิมและ body เดิม; key เดิมแต่ body ต่างกันตอบ `409`
+- Endpoint ที่ต้องล็อกอินใช้ `Authorization: Bearer <access_token>` เป็น JWT ES256 อายุ 60 นาที มี `sub` (user ID), `role`, `iss`, `aud`, `iat`, `exp`; Gateway และบริการปลายทางตรวจ signature, issuer, audience, อายุและสิทธิ์เจ้าของข้อมูล ไม่มี refresh token ในเดโม; หมดอายุให้ล็อกอินใหม่
+- บัญชี `PLATFORM_ADMIN` และ `SUPERVISOR` สร้างด้วยคำสั่ง bootstrap ของ Identity โดยผู้ดูแลตอนเตรียมเดโม ไม่มี public sign-up หรือรหัสผ่านตั้งต้นใน Git; รหัสผ่านผู้ใช้เก็บเป็น Argon2id hash
+- คำขอแก้ข้อมูลที่อาจถูกส่งซ้ำ (`submit`, `decision`, `report`, `certificate approval`) รับ `Idempotency-Key` เพื่อคืนผลเดิมเมื่อส่งซ้ำด้วย key เดิมและ body เดิมภายใน 24 ชั่วโมง; key เดิมแต่ body ต่างกันตอบ `409`
 - `GET` ที่เป็นรายการตอบ `{ "items": [...], "next_cursor": null }`; รับ `limit` (1–100, ค่าเริ่มต้น 20) และ `cursor`
 - รูปแบบ error ทุกบริการ:
 
@@ -68,9 +70,10 @@ Gateway ส่ง route `/v1/auth/*`, `/v1/me`, `/v1/companies/*` และ `/v1
 | `POST /v1/companies/me/kyb-submissions` | `COMPANY_HR` | `multipart/form-data`: `registration_number`, `document` | `202` `KybSubmission`; สถานะเริ่ม `PENDING_EXTERNAL` |
 | `GET /v1/companies/me/kyb-submissions/{submission_id}` | HR เจ้าของบริษัท | — | `200` `KybSubmission` |
 | `GET /v1/admin/kyb-submissions?status=PENDING_ADMIN` | `PLATFORM_ADMIN` | filter + pagination | `200` รายการ `KybSubmission` |
+| `GET /v1/admin/kyb-submissions/{submission_id}/document` | `PLATFORM_ADMIN` | — | `200` ไฟล์ KYB หลังตรวจสิทธิ์ |
 | `POST /v1/admin/kyb-submissions/{submission_id}/decision` | `PLATFORM_ADMIN` | `decision: APPROVE\|REJECT`, `reason` เมื่อ reject | `200` `KybSubmission`; approve แล้วบริษัทเป็น Tier 1 |
 
-`registration_number` เป็นสตริงตัวเลข 13 หลัก เก็บเลขศูนย์นำหน้าได้; ไฟล์เอกสารต้องจำกัดประเภทและขนาดใน implementation และไม่ส่งไฟล์หรือเลขทะเบียนเต็มผ่าน Event/Log การเรียก e-KYB Mock หรือ 3rd Party อยู่หลัง Identity เท่านั้น ผลภายนอกเป็นข้อมูลประกอบการตัดสินของ Admin ไม่เลื่อน Tier อัตโนมัติ
+`registration_number` เป็นสตริงตัวเลข 13 หลัก เก็บเลขศูนย์นำหน้าได้; เอกสาร KYB รับ PDF, JPEG หรือ PNG ขนาดไม่เกิน 5 MiB ตรวจนามสกุล, MIME และ signature ของไฟล์ก่อนเก็บใน private volume ของ Identity ด้วย storage key แบบสุ่ม ไม่ส่งไฟล์หรือเลขทะเบียนเต็มผ่าน Event/Log Identity เรียก e-KYB Mock HTTP ผ่าน Adapter เท่านั้น ผล Mock เป็นข้อมูลประกอบการตัดสินของ Admin ไม่เลื่อน Tier อัตโนมัติ
 
 ตัวอย่าง `Company` และ `KybSubmission` ที่ส่งให้ผู้มีสิทธิ์:
 
@@ -169,6 +172,7 @@ Gateway ส่ง `/v1/students/me/*`, `/v1/jobs/{job_id}/applications`, `/v1/ap
 | `GET /v1/students/me/profile` | `STUDENT` | — | `200` profile, badge และ certificate IDs |
 | `PUT /v1/students/me/profile` | `STUDENT` | `university`, `major`, `skills` | `200` profile; `display_name` อ้างจาก Identity |
 | `POST /v1/students/me/resume` | `STUDENT` | `multipart/form-data`: `document` | `201` `{ resume_id, filename }` |
+| `GET /v1/resumes/{resume_id}/file` | Student เจ้าของ / HR ที่มีใบสมัครอ้าง resume นี้ | — | `200` PDF หลังตรวจสิทธิ์ |
 | `POST /v1/jobs/{job_id}/applications` | `STUDENT` | `resume_id`, `cover_note` | `201` Application; งานต้อง `PUBLISHED` |
 | `GET /v1/applications/me` | `STUDENT` | pagination | `200` ใบสมัครของตน |
 | `GET /v1/jobs/{job_id}/applications` | HR เจ้าของงาน | pagination | `200` ใบสมัครของงานนั้น |
@@ -181,6 +185,8 @@ Gateway ส่ง `/v1/students/me/*`, `/v1/jobs/{job_id}/applications`, `/v1/ap
 เมื่อ HR รับใบสมัคร Student Experience สร้าง Internship และบันทึก `start_date` ซึ่งต้องไม่ก่อนวันที่รับเข้าและแก้ย้อนหลังไม่ได้ `assessment` รับเฉพาะ `end_date` ที่ไม่เกินวันปัจจุบันและไม่ก่อน `start_date` รีวิวเปิดเมื่อ Internship เป็น `COMPLETED` ไม่ว่า `assessment_result` จะ `PASS` หรือ `FAIL` และ 1 Internship รีวิวได้ครั้งเดียว
 
 Supervisor อนุมัติ Certificate ได้เฉพาะ Internship `COMPLETED` ที่ผล `PASS` และระยะ `end_date - start_date >= 30 วัน` ตรวจซ้ำที่ server แม้ UI จะปิดปุ่ม หากยังไม่ครบตอบ `409 INTERNSHIP_TOO_SHORT`
+
+Resume รับ PDF ขนาดไม่เกิน 5 MiB ตรวจนามสกุล, MIME และ signature ของไฟล์; Certificate เป็น PDF ที่ระบบสร้าง ทั้งสองชนิดอยู่ใน private volume ของ Student Experience ใช้ storage key แบบสุ่ม และดาวน์โหลดผ่าน API ที่ตรวจสิทธิ์เท่านั้น ไม่เปิด path ไฟล์เป็น static URL
 
 ฟิลด์ response ขั้นต่ำของ resource ฝั่งนักศึกษา:
 
@@ -205,12 +211,8 @@ Internal API ใช้เฉพาะ service-to-service authentication ไม�
 
 การตรวจประกาศใช้ Event `JobSubmitted`/`JobEdited` และ `JobVerificationCompleted` ตามสถาปัตยกรรม การอนุมัติ Admin, Report, ผลฝึกงาน และ On-Site ส่งผลข้ามบริการตาม `docs/event-contract.md`; API นี้ไม่ถือว่า `202` คือการอัปเดตข้ามบริการเสร็จแล้ว
 
-## 8. ประเด็นที่ต้องยืนยันก่อน implementation
+## 8. ข้อตกลงสำหรับ implementation
 
-1. การจัดเก็บไฟล์ KYB/Resume/Certificate และขนาดไฟล์สูงสุด
-2. ระยะเวลา access token และวิธี provisioning บัญชี Admin/Supervisor
-3. การยืนยันวันเริ่มฝึกงานจริงหลังรับเข้า; ข้อตกลงปัจจุบันคือบันทึกวันที่เริ่มเมื่อ HR รับนักศึกษา โดยห้ามกรอกวันย้อนหลัง
-
-การยืนยันประเด็นเหล่านี้ไม่เปลี่ยนกฎ Risk Score, การบังคับตรวจใหม่หลังแก้ประกาศ, การอนุญาตให้ผู้ที่ Fail รีวิว หรือเกณฑ์ Certificate อย่างน้อย 30 วัน
+ใช้ e-KYB Mock HTTP, private Docker volume, JWT ES256 อายุ 60 นาที, bootstrap บัญชี Admin/Supervisor และ `Idempotency-Key` อายุ 24 ชั่วโมงตามข้อ 1 และ 3; วันเริ่มฝึกงานบันทึกเมื่อ HR รับนักศึกษาและห้ามกรอกย้อนหลังตามข้อ 6 หากต้องการให้ Student หรือ Supervisor ยืนยันวันเริ่มจริงในอนาคต ต้องเพิ่ม workflow และแก้ Contract ก่อนพัฒนา
 
 แบบตารางและข้อบังคับข้อมูลที่รองรับ API นี้อยู่ใน `docs/database-schema.md`

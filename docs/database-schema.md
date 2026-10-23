@@ -1,17 +1,18 @@
 # Database Schema — University Internship Platform
 
-**สถานะ:** Logical schema สำหรับงาน SA, Week 1<br>
+**สถานะ:** Logical schema บน PostgreSQL สำหรับงาน SA, Week 1; ยังไม่ใช่ migration จริง<br>
+**ลำดับอ่าน:** [สารบัญเอกสาร](README.md) → [Event Contract](event-contract.md) → เอกสารนี้ → [Project Setup Handoff](project-setup.md)<br>
 **อ้างอิง:** `docs/architecture.md`, `docs/api-contract.md`, `docs/event-contract.md`
 
-เอกสารนี้กำหนดตาราง ฟิลด์สำคัญ ความสัมพันธ์ และข้อบังคับของข้อมูลสำหรับ 4 Microservices เป็นแบบฐานข้อมูลเชิงสัมพันธ์ที่ยังไม่ผูกกับ PostgreSQL/MySQL/SQLite เมื่อทีมเลือก DBMS แล้วจึงแปลงชนิดข้อมูลและ partial indexes เป็น migration จริง
+เอกสารนี้กำหนดตาราง ฟิลด์สำคัญ ความสัมพันธ์ และข้อบังคับของข้อมูลสำหรับ 4 Microservices บน PostgreSQL สำหรับเดโมใช้ PostgreSQL instance เดียว แยก `identity_db`, `job_db`, `verification_db` และ `student_db` โดยแต่ละ NestJS Service ใช้ Prisma ORM พร้อม Prisma schema, Prisma Client และ migration ของตนเอง ต้องแปลงข้อบังคับในเอกสารนี้เป็น migration จริงก่อนใช้ฐานข้อมูล
 
 ## 1. หลักร่วมของฐานข้อมูล
 
-- แต่ละ Service มี database/schema ของตนเองและเป็นเจ้าของการเขียนข้อมูลนั้นเท่านั้น **ห้ามสร้าง foreign key ข้าม Service**; ID ภายนอกเก็บเป็น UUID string และตรวจสิทธิ์/สถานะกับบริการเจ้าของข้อมูลเมื่อทำธุรกรรมสำคัญ
-- `UUID`, `VARCHAR(n)`, `TEXT`, `INTEGER`, `BOOLEAN`, `DATE`, `DECIMAL(12,2)`, `TIMESTAMP_UTC`, `JSON` ในเอกสารเป็น logical types; timestamp เก็บ UTC ส่วนกฎวันฝึกงานและอายุ On-Site ใช้วันตาม `Asia/Bangkok`
+- แต่ละ Service ใช้ database และบัญชีเชื่อมต่อ PostgreSQL ของตนเอง เป็นเจ้าของการอ่าน/เขียนข้อมูลนั้นเท่านั้น **ห้ามสร้าง foreign key ข้าม Service**; ID ภายนอกส่งผ่าน API/Event เป็น UUID string และตรวจสิทธิ์/สถานะกับบริการเจ้าของข้อมูลเมื่อทำธุรกรรมสำคัญ
+- ชนิดข้อมูลในตารางแปลงเป็น PostgreSQL ดังนี้: `UUID`, `VARCHAR(n)`, `TEXT`, `INTEGER`, `BOOLEAN`, `DATE` ใช้ชื่อเดียวกัน; `DECIMAL(12,2)` ใช้ `NUMERIC(12,2)`; `TIMESTAMP_UTC` ใช้ `TIMESTAMPTZ` และบันทึกเวลาเป็น UTC; `JSON` ใช้ `JSONB` ส่วนกฎวันฝึกงานและอายุ On-Site ใช้วันตาม `Asia/Bangkok`
 - ทุกตารางธุรกิจมี `created_at TIMESTAMP_UTC`; ตารางที่แก้ไขได้มี `updated_at TIMESTAMP_UTC` ด้วย เว้นแต่ระบุเป็นอย่างอื่น
 - Enum ที่อ้างถึงใช้ค่าตาม `docs/api-contract.md`; ฐานข้อมูลมี `CHECK` หรือ enum type เพื่อกันค่าอื่นหลุดเข้ามา
-- ไฟล์ KYB, Resume และ Certificate เก็บใน private object/file storage; DB เก็บเพียง storage key และ metadata ไม่เก็บ byte ของไฟล์ในตารางหรือ Event
+- ไฟล์ KYB อยู่ใน private Docker volume ของ Identity; Resume/Certificate อยู่ใน private Docker volume ของ Student Experience DB เก็บเพียง storage key แบบสุ่มและ metadata ไม่เก็บ byte ของไฟล์ในตารางหรือ Event และไม่เปิด volume เป็น static URL
 - ฟิลด์ JSON ใช้กับรายการที่ไม่มีการ join ตามรายการย่อยใน MVP เช่น `benefits`, `skills`, `score_reasons`; ฟิลด์ที่ต้องบังคับ unique หรือค้นหาบ่อยแยกเป็นคอลัมน์/ตาราง
 - การลบข้อมูลธุรกิจที่มีการอ้างอิงให้ใช้สถานะปิด/ยกเลิกหรือ soft delete ตามกรณี ไม่ cascade ลบหลักฐานการตรวจ, Report, รีวิว หรือใบรับรอง
 
@@ -61,7 +62,7 @@
 
 เมื่อรับ `JobVerificationCompleted` ให้ update แบบมีเงื่อนไข `current_version = job_version AND status = VERIFYING AND moderation_hold = false` เท่านั้น หากไม่ตรงให้ถือเป็นผลเก่าและไม่เผยแพร่ เมื่อรับ `JobSuspensionRequested` ให้ตั้ง `moderation_hold = true` พร้อม `status = SUSPENDED` ก่อนตอบ `JobTransitionResolved`; ผลตรวจที่มาภายหลังเปลี่ยนกลับไม่ได้
 
-ดัชนีหลัก: `jobs(status, updated_at DESC)` สำหรับ public search (`status = PUBLISHED` เท่านั้น), `jobs(company_id, updated_at DESC)` สำหรับ HR dashboard; search ข้อความอิสระ `q` ใช้ index ที่ DBMS รองรับเมื่อเลือกเทคโนโลยี
+ดัชนีหลัก: `jobs(status, updated_at DESC)` สำหรับ public search (`status = PUBLISHED` เท่านั้น), `jobs(company_id, updated_at DESC)` สำหรับ HR dashboard; `q` ในเดโมใช้ `ILIKE` กับ `job_title`/`description` โดยกรอง `status = PUBLISHED` ก่อน และจำกัดผลด้วย pagination หากข้อมูลโตค่อยประเมิน full-text index ภายหลัง
 
 ## 4. Verification & Trust DB
 
@@ -110,7 +111,7 @@ Verification ตรวจงานโดยบันทึก `job_verifications
 | `processed_events` | `consumer_name`, `event_id UUID`, `processed_at TIMESTAMP_UTC` | PK `(consumer_name, event_id)`; insert พร้อมผลธุรกิจใน transaction เดียวกันเพื่อรับ Event ซ้ำได้ |
 | `idempotency_requests` | `actor_id UUID`, `operation_key`, `idempotency_key`, `request_hash`, `response_status INTEGER`, `response_body JSON`, `created_at TIMESTAMP_UTC`, `expires_at TIMESTAMP_UTC` | PK `(actor_id, operation_key, idempotency_key)`; key เดิม + hash เดิมคืนผลเดิม, hash ต่างตอบ `409` |
 
-Outbox และ Inbox เป็นส่วนหนึ่งของ transaction ฐานข้อมูลบริการนั้น ไม่ใช้ shared DB ระหว่าง Service; รหัส Event และ Idempotency-Key เป็นคนละกลไก TTL ของ `idempotency_requests`, retry limit และ Dead Letter Queue กำหนดหลังเลือก Broker และ DBMS
+Outbox และ Inbox ต้องบันทึกพร้อมข้อมูลธุรกิจใน Prisma transaction ของ database บริการนั้น ไม่ใช้ shared DB ระหว่าง Service และไม่ publish ไป RabbitMQ ภายใน transaction; รหัส Event และ Idempotency-Key เป็นคนละกลไก ตั้ง `expires_at = created_at + 24 ชั่วโมง` สำหรับ `idempotency_requests` และลบ record ที่หมดอายุเป็นระยะ; RabbitMQ retry 3 ครั้งแล้วเข้าคิว DLQ ตาม `docs/event-contract.md`
 
 ## 7. ข้อบังคับที่ต้องทำใน transaction / service layer
 
@@ -122,7 +123,8 @@ Outbox และ Inbox เป็นส่วนหนึ่งของ transact
 6. **Review:** ตรวจ Internship เป็น `COMPLETED` และ Student เป็นเจ้าของ; unique `internship_id` กันรีวิวซ้ำ โดยไม่ดู Pass/Fail เป็นเงื่อนไขสิทธิ์
 7. **Certificate:** ตรวจ `PASS` และระยะอย่างน้อย 30 วัน; บันทึก decision, certificate, badge ใน transaction เดียวกัน; unique `internship_id` ป้องกันออกซ้ำ
 
-## 8. ข้อเปิดก่อนทำ migration จริง
+## 8. รายละเอียดก่อนทำ migration จริง
 
-- DBMS, วิธีเก็บไฟล์, เทคนิค search และชนิด JSON จริงยังต้องเลือกตาม stack ของทีม
+- ใช้ Prisma ORM 7.x: pin `prisma` และ `@prisma/client` เป็น major 7 เดียวกันใน lockfile; migration แยกต่อ Service และเก็บใน Git ข้อบังคับ PostgreSQL เช่น `CHECK` และ partial unique index ให้เพิ่ม SQL ใน migration ที่ตรวจทานแล้ว โดยไม่ต้องเปิด Preview feature เพียงเพื่อสร้างดัชนีเหล่านี้
+- ไฟล์อยู่ใน private volume ตามข้อ 1; `q` ใช้ PostgreSQL `ILIKE` ตามข้อ 3; ทดสอบ query และ migration กับ PostgreSQL จริงก่อนเดโม
 - วันเริ่มฝึกงานตาม API Contract บันทึกตอน HR รับเข้าและห้ามย้อนหลัง; หากต้องยืนยันวันเริ่มจริงโดยนักศึกษาหรือ Supervisor ต้องเพิ่ม workflow ก่อน implementation

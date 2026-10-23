@@ -1,9 +1,10 @@
 # Event Payload Contract v1 — University Internship Platform
 
 **สถานะ:** แบบร่างร่วมสำหรับทีม, Week 1<br>
-**อ้างอิง:** `docs/architecture.md`, `docs/api-contract.md`, Verification Rules & Risk Scoring Engine
+**ลำดับอ่าน:** [สารบัญเอกสาร](README.md) → [API Contract](api-contract.md) → เอกสารนี้ → [Database Schema](database-schema.md)<br>
+**อ้างอิง:** [System Architecture](architecture.md), [API Contract](api-contract.md), [Verification Rules & Risk Score](<../Verification Rules & Risk Sco.txt>)
 
-เอกสารนี้กำหนดเหตุการณ์ที่ 4 Microservices แลกเปลี่ยนผ่าน Message Broker โดยไม่ผูกกับ RabbitMQ, Kafka หรือผลิตภัณฑ์ใดเป็นพิเศษ คำว่า `v1` ในที่นี้คือเวอร์ชัน schema ของ Event แยกจาก `/v1` ของ HTTP API
+เอกสารนี้กำหนดเหตุการณ์ที่ 4 Microservices แลกเปลี่ยนผ่าน RabbitMQ คำว่า `v1` ในที่นี้คือเวอร์ชัน schema ของ Event แยกจาก `/v1` ของ HTTP API
 
 ## 1. รูปแบบ Event กลาง
 
@@ -30,7 +31,7 @@
 | `event_type`, `schema_version` | ชื่อ Event แบบ PascalCase และเลขเวอร์ชัน schema; Consumer ปฏิเสธเวอร์ชันที่ไม่รองรับ |
 | `occurred_at` | เวลาเกิดเหตุการณ์จากบริการต้นทาง เป็น ISO 8601 UTC |
 | `producer` | `identity`, `job-management`, `verification-trust`, `student-experience` |
-| `aggregate_type`, `aggregate_id` | สิ่งที่เปลี่ยน เช่น `job`, `company`, `internship`; ใช้เป็น ordering key ถ้า Broker รองรับ |
+| `aggregate_type`, `aggregate_id` | สิ่งที่เปลี่ยน เช่น `job`, `company`, `internship`; ใช้ระบุ aggregate เพื่อเทียบสถานะ/เวอร์ชันเมื่อ Event มาผิดลำดับ โดยไม่สมมติว่า RabbitMQ รับประกันลำดับข้าม queue |
 | `correlation_id` | ID ของคำขอหรือ workflow ต้นทาง ส่งต่อค่าเดิมตลอดสาย |
 | `causation_id` | `event_id` ของเหตุการณ์ที่ทำให้เกิด Event นี้; `null` สำหรับ Event จาก HTTP request โดยตรง |
 | `payload` | เนื้อหาเฉพาะ Event ตามตารางด้านล่าง; ใช้ `snake_case` และ UUID string |
@@ -39,7 +40,7 @@
 
 ## 2. รายการ Event และเส้นทาง
 
-ชื่อ routing ด้านล่างเป็นชื่อเชิงตรรกะ ทีมสามารถ map ไปยัง topic/queue ของ Broker ที่เลือกได้ Consumer แต่ละบริการใช้ subscription ของตนเอง ไม่ให้บริการสองตัวแย่งอ่านข้อความที่อีกตัวต้องได้รับ
+ค่า Routing ด้านล่างใช้เป็น RabbitMQ routing key บน topic exchange `internship.events.v1` Consumer แต่ละบริการใช้ queue ของตนเอง ไม่ให้บริการสองตัวแย่งอ่านข้อความที่อีกตัวต้องได้รับ
 
 | Event (`schema_version: 1`) | Routing | Producer → Consumer | จุดที่ส่ง |
 | --- | --- | --- | --- |
@@ -54,6 +55,16 @@
 | `InternshipAssessmentRecorded` | `internships.assessment-recorded` | Student Experience → Identity | HR ประเมินการฝึกงานจบเป็น Pass/Fail |
 | `OnSiteVerificationPassed` | `companies.on-site-passed` | Verification & Trust → Identity | Supervisor ลงพื้นที่และยืนยันผ่าน |
 | `CompanyTrustChanged` | `companies.trust-changed` | Identity → Job Management, Verification & Trust | KYB/Tier/On-Site expiry เปลี่ยน; ใช้อัปเดตการแสดงผลเท่านั้น |
+
+สำหรับเดโมให้สร้าง exchange และ queue แบบ durable โดยผูก routing key ตามผู้รับ:
+
+| Queue | Binding keys |
+| --- | --- |
+| `identity.events.v1` | `jobs.publication-changed`, `companies.report-confirmed`, `internships.assessment-recorded`, `companies.on-site-passed` |
+| `job-management.events.v1` | `jobs.verification-completed`, `jobs.review-decided`, `jobs.suspension-requested`, `companies.trust-changed` |
+| `verification-trust.events.v1` | `jobs.submitted`, `jobs.edited`, `jobs.transition-resolved`, `jobs.publication-changed`, `companies.trust-changed` |
+
+Student Experience ส่ง `InternshipAssessmentRecorded` แต่ไม่มี Event ที่ต้องรับใน v1 จึงยังไม่ต้องมี consumer queue; publisher ใช้ persistent message, ตั้ง `mandatory` และตรวจ returned message กรณีไม่มี queue รับ พร้อมรอ publisher confirm ก่อนทำเครื่องหมาย Outbox ว่าส่งแล้ว Consumer ACK หลัง transaction ที่อัปเดตข้อมูลและ `processed_events` สำเร็จเท่านั้น
 
 Identity และ Verification ต้องอ่าน posting context ปัจจุบันผ่าน Internal API ตอนส่งตรวจและคำนวณคะแนน `CompanyTrustChanged` อาจมาช้าหรือสลับลำดับ จึงใช้ cache จาก Event เป็นแหล่งตัดสินสิทธิ์หรือ Risk Score โดยลำพังไม่ได้
 
@@ -128,18 +139,20 @@ Verification เก็บ Report ใหม่จากผู้รายงา�
 
 ## 6. การส่งซ้ำ ลำดับ และกรณีล้มเหลว
 
-1. **Persist + publish:** Producer บันทึกข้อมูลธุรกิจและ outbox record ใน transaction เดียวกัน แล้ว publisher ส่งจาก Outbox ไป Broker; HTTP `202` หมายถึงบันทึกงานและ Outbox สำเร็จ ไม่จำเป็นต้องรอ Consumer
-2. **At-least-once:** Broker อาจส่ง Event ซ้ำ Consumer เก็บ `event_id` ที่ประมวลผลแล้วใน inbox/processed-events และอัปเดตข้อมูลกับ inbox ใน transaction เดียวกัน
+1. **Persist + publish:** Producer ใช้ Prisma transaction บันทึกข้อมูลธุรกิจและ outbox record ใน PostgreSQL database ของตน แล้ว publisher ส่งจาก Outbox ไป RabbitMQ ภายหลัง commit; HTTP `202` หมายถึงบันทึกงานและ Outbox สำเร็จ ไม่จำเป็นต้องรอ Consumer
+2. **At-least-once:** RabbitMQ อาจส่ง Event ซ้ำ Consumer เก็บ `event_id` ที่ประมวลผลแล้วใน inbox/processed-events และอัปเดตข้อมูลกับ inbox ใน Prisma transaction เดียวกัน
 3. **Ordering:** ไม่สมมติว่าทุก Event ทั้งระบบเรียงลำดับ; ผลตรวจประกาศต้องเทียบ `job_version`, ผล On-Site ต้องเทียบวันที่และสถานะปัจจุบัน, การเลื่อน Tier ต้องนับ ID ต้นทางไม่ซ้ำ
-4. **Retry:** ความผิดพลาดชั่วคราว เช่น Identity/DB ไม่พร้อม ให้ retry แบบเพิ่มช่วงรอ จำกัดจำนวนครั้ง แล้วส่ง Dead Letter Queue พร้อม `event_id` และเหตุผลเพื่อให้ทีมตรวจและ replay
-5. **Invalid schema:** Consumer ไม่เปลี่ยนสถานะธุรกิจหาก payload ขาดฟิลด์, enum ผิด หรือ `schema_version` ไม่รองรับ; ส่ง Dead Letter Queue และแจ้งผู้ดูแล
+4. **Retry:** เมื่อ consumer พบความผิดพลาดชั่วคราว ให้ส่งข้อความเดิม (`event_id` เดิม) ไป durable retry queue พร้อม publisher confirm แล้ว ACK ข้อความเดิม; ใช้ TTL + dead-letter exchange ส่งกลับคิวหลักหลัง 5, 30 และ 120 วินาทีตามลำดับ รวม retry ได้ 3 ครั้ง หลังจากนั้นส่ง per-service DLQ พร้อมจำนวนครั้งและเหตุผล ห้าม requeue ทันทีแบบวนไม่สิ้นสุด
+5. **Invalid schema:** Consumer ไม่เปลี่ยนสถานะธุรกิจหาก payload ขาดฟิลด์, enum ผิด หรือ `schema_version` ไม่รองรับ; ส่ง per-service DLQ ทันทีหลังยืนยันการ publish และแจ้งผู้ดูแล
 6. **Safe visibility:** งาน `VERIFYING`, `SUSPENDED`, `CLOSED`, `AUTO_REJECTED`, `REJECTED` และ `PENDING_REVIEW` ไม่อยู่ใน public search; ผลตรวจซ้ำ/ช้าหรือ Event ผิดลำดับต้องไม่ทำให้งานเหล่านี้เผยแพร่โดยไม่ผ่าน guard ของ Job Management
 7. **Schema evolution:** เพิ่ม optional field ได้ใน `schema_version: 1` โดย Consumer ต้องมองข้าม field ที่ไม่รู้จัก; การเปลี่ยนความหมาย, ลบฟิลด์บังคับ หรือเปลี่ยนชนิดต้องเพิ่มเวอร์ชันและรองรับช่วงเปลี่ยนผ่าน
 
-## 7. ข้อกำหนดที่ยังต้องตัดสินร่วมกัน
+## 7. การปฏิบัติงานกับ RabbitMQ
 
-- ชื่อ topic/queue จริง, retry limit, ระยะเก็บ Dead Letter Queue และวิธี replay ขึ้นกับ Broker ที่ทีมเลือก
+- Exchange/queue หลักและ routing key อยู่ในข้อ 2; retry queue และ DLQ แยกต่อ consumer เป็น durable, ข้อความเป็น persistent และตั้ง TTL เฉพาะ retry queue ไม่ตั้ง TTL ใน DLQ เพื่อเก็บไว้จนผู้ดูแลตรวจและลบหรือ replay
+- หลังแก้สาเหตุ ผู้ดูแล replay จาก DLQ ด้วยสคริปต์เฉพาะงานโดยรักษา envelope และ `event_id` เดิม เพิ่มบันทึกเหตุผล/เวลาที่ replay แยกจาก payload; `processed_events` ป้องกันการทำธุรกรรมซ้ำ
+- Publisher ต้องใช้ confirm และตรวจ unroutable message ก่อนทำเครื่องหมาย Outbox ว่า publish สำเร็จ; การย้ายข้อความไป retry queue/DLQ ต้องยืนยันการ publish ก่อน ACK ข้อความต้นทาง เพื่อไม่ให้ข้อความหายเมื่อ broker ขัดข้อง
 
-กฎ Blacklist, ช่วงคะแนน Risk Score, การซ่อนโพสต์หลังแก้ไข, สิทธิ์รีวิวผู้ที่ Fail และระยะฝึกขั้นต่ำ 30 วันเป็นข้อกำหนดที่ยืนยันแล้ว ไม่ขึ้นกับประเด็นเปิดข้างต้น
+กฎ Blacklist, ช่วงคะแนน Risk Score, การซ่อนโพสต์หลังแก้ไข, สิทธิ์รีวิวผู้ที่ Fail และระยะฝึกขั้นต่ำ 30 วันยังคงใช้ตามเอกสารหลักและ API Contract
 
 ตาราง Outbox/Inbox และหลักฐานที่ Consumer บันทึกอยู่ใน `docs/database-schema.md`

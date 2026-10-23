@@ -1,47 +1,66 @@
 # System Architecture — University Internship Platform
 
 **สถานะ:** แบบร่างสำหรับงาน SA, Week 1<br>
-**เอกสารอ้างอิง:** `README.md`, `Verification Rules & Risk Sco.txt`, `TODO.txt`
+**ลำดับอ่าน:** [สารบัญเอกสาร](README.md) → เอกสารนี้ → [Design Diagrams](diagrams.md)<br>
+**เอกสารอ้างอิง:** [README หลัก](../README.md), [Verification Rules & Risk Score](<../Verification Rules & Risk Sco.txt>), [TODO](../TODO.txt)
 
 ## 1. เป้าหมายและขอบเขต
 
-ระบบเป็นแพลตฟอร์มตัวกลางสำหรับประกาศและสมัครฝึกงาน โดยตรวจตัวตนบริษัทก่อนให้เผยแพร่งาน ตรวจเนื้อหาและคะแนนความเสี่ยงของประกาศ และติดตามความน่าเชื่อถือหลังการสมัคร สถาปัตยกรรมประกอบด้วย API Gateway, 4 Microservices, Message Broker และตัวเชื่อมต่อ e-KYB แบบ 3rd Party/Mock รันร่วมกันด้วย Docker Compose สำหรับการสาธิต
+ระบบเป็นแพลตฟอร์มตัวกลางสำหรับประกาศและสมัครฝึกงาน โดยตรวจตัวตนบริษัทก่อนให้เผยแพร่งาน ตรวจเนื้อหาและคะแนนความเสี่ยงของประกาศ และติดตามความน่าเชื่อถือหลังการสมัคร สถาปัตยกรรมประกอบด้วย API Gateway, 4 Microservices, RabbitMQ และ e-KYB Mock ผ่าน Adapter รันร่วมกันด้วย Docker Compose สำหรับการสาธิต
 
-เอกสารนี้กำหนด **ขอบเขตความรับผิดชอบและการไหลของข้อมูล** ก่อนลงรายละเอียด Database Schema, API Contract, Event Payload และเทคโนโลยีที่ใช้จริง
+เอกสารนี้กำหนด **ขอบเขตความรับผิดชอบ การไหลของข้อมูล และ stack ที่ทีมเลือก** ก่อนลงรายละเอียด Database Schema, API Contract และ Event Payload การใช้ PostgreSQL instance เดียวแยก database ต่อ Service เป็นแบบจัดวางสำหรับเดโมในเอกสาร SA นี้
+
+### Stack ที่ทีมเลือก
+
+| ส่วน | เทคโนโลยี |
+| --- | --- |
+| Web UI | Next.js + TypeScript + Tailwind CSS; หน้าและ React components ใช้ `.tsx` ส่วน logic ที่ไม่มี JSX ใช้ `.ts` |
+| API Gateway และ 4 Microservices | NestJS + TypeScript (`.ts`); แยกแอปตามบริการ |
+| ฐานข้อมูล | PostgreSQL; แต่ละบริการเป็นเจ้าของ database ของตนบน instance เดียวสำหรับเดโม |
+| การเข้าฐานข้อมูล | Prisma ORM 7.x; แยก Prisma schema, client และ migration ตามบริการ โดย pin `prisma` และ `@prisma/client` เป็น major 7 เดียวกันใน lockfile |
+| Event | RabbitMQ; รายละเอียด exchange/queue อยู่ใน `docs/event-contract.md` |
+| e-KYB | Mock HTTP ใน Docker Compose หลัง Identity Adapter; ผล Mock เป็นข้อมูลให้ Admin ตัดสิน ไม่อนุมัติ Tier อัตโนมัติ |
+| ไฟล์ | private Docker volume แยก Identity กับ Student Experience; DB เก็บ storage key/metadata และดาวน์โหลดผ่าน API ที่ตรวจสิทธิ์ |
+| การทดสอบ | Mocha สำหรับ unit/API integration และ UAT ตามกรณีใน [README หลัก](../README.md) |
+| การรันเดโม | Docker Compose ตามขอบเขตใน [README หลัก](../README.md) |
 
 ## 2. ภาพรวมส่วนประกอบ
 
+Use Case, Activity, Sequence, ER, Class, System Architecture และ DFD รวมทั้ง structure/state diagrams สำหรับส่งต่อให้ทีมอยู่ใน `docs/diagrams.md`; โครงสร้าง workspace และรายการ dependencies อยู่ใน `docs/project-setup.md`
+
 ```mermaid
 flowchart LR
-    UI[Web UI: Student / HR / Admin / Supervisor] --> GW[API Gateway]
+    UI[Next.js Web UI: Student / HR / Admin / Supervisor] --> GW[API Gateway]
     GW --> ID[Identity & Company KYB]
     GW --> JOB[Job Management]
     GW --> VERIFY[Verification & Trust]
     GW --> STUDENT[Student Experience]
 
-    ID --> IDDB[(Identity DB)]
-    JOB --> JOBDB[(Job DB)]
-    VERIFY --> VDB[(Verification DB)]
-    STUDENT --> SDB[(Student DB)]
+    ID --> IDDB[(PostgreSQL: Identity DB)]
+    JOB --> JOBDB[(PostgreSQL: Job DB)]
+    VERIFY --> VDB[(PostgreSQL: Verification DB)]
+    STUDENT --> SDB[(PostgreSQL: Student DB)]
 
-    ID --> KYB[e-KYB Adapter: Mock / 3rd Party]
-    JOB <--> MQ[(Message Broker)]
+    ID --> KYB[e-KYB Adapter: Mock HTTP]
+    ID --> IDFILES[(Private KYB Volume)]
+    STUDENT --> SFILES[(Private Resume / Certificate Volume)]
+    JOB <--> MQ[(RabbitMQ)]
     VERIFY <--> MQ
-    STUDENT <--> MQ
+    STUDENT --> MQ
     ID <--> MQ
 ```
 
 | ส่วนประกอบ | เจ้าของข้อมูลและหน้าที่หลัก |
 | --- | --- |
-| API Gateway | จุดรับคำขอจาก Web UI, ตรวจ token เบื้องต้น, ส่งต่อไปยังบริการตาม route; ไม่เก็บข้อมูลธุรกิจ |
+| API Gateway | NestJS app รับคำขอจาก Web UI, ตรวจ token เบื้องต้น, ส่งต่อไปยังบริการตาม route; ไม่เก็บข้อมูลธุรกิจ |
 | Identity & Company KYB | บัญชีผู้ใช้, บทบาท, บริษัท, ผล e-KYB, Trust Tier และอายุ On-Site Badge; เป็นแหล่งอ้างอิงสถานะบริษัท |
 | Job Management | ประกาศงาน, เจ้าของประกาศ, เนื้อหาปัจจุบัน, เลขลำดับการแก้ไขภายใน, สถานะเผยแพร่และการค้นหางานที่เผยแพร่; HR จัดการประกาศของบริษัทตนเอง |
 | Verification & Trust | Blacklist, กฎ Risk Score, ผลตรวจแต่ละเวอร์ชัน, คิว Admin, Report และการตรวจสถานที่โดย Supervisor |
 | Student Experience | โปรไฟล์/เรซูเม่, ใบสมัคร, ผลการรับและการฝึกงาน, รีวิวที่ยืนยันสิทธิ์, Badge นักศึกษาและ E-Certificate |
-| Message Broker | ส่งเหตุการณ์ระหว่างบริการแบบ asynchronous โดยเฉพาะการตรวจประกาศ เพื่อไม่ให้คำขอหน้าเว็บต้องรอประมวลผลครบทุกขั้น |
-| e-KYB Adapter | อินเทอร์เฟซเดียวสำหรับ Mock และ 3rd Party; ผลจากภายนอกส่งกลับ Identity เพื่อให้ Admin พิจารณา |
+| RabbitMQ | ส่งเหตุการณ์ระหว่างบริการแบบ asynchronous โดยเฉพาะการตรวจประกาศ เพื่อไม่ให้คำขอหน้าเว็บต้องรอประมวลผลครบทุกขั้น |
+| e-KYB Adapter | Identity เรียก Mock HTTP ผ่านอินเทอร์เฟซที่เปลี่ยน provider ได้ภายหลัง; ผล Mock ส่งกลับ Identity เพื่อให้ Admin พิจารณา |
 
-แต่ละบริการเป็นเจ้าของฐานข้อมูลของตนเอง บริการอื่นเข้าถึงผ่าน API หรือ Event เท่านั้น ไม่มีการเขียนฐานข้อมูลข้ามบริการ
+แต่ละบริการใช้ Prisma Client และ migration ของตนเองกับ database ที่ตนเป็นเจ้าของ บริการอื่นเข้าถึงผ่าน API หรือ Event เท่านั้น ไม่มีการอ่าน/เขียนฐานข้อมูลข้ามบริการ
 
 ## 3. การไหลหลักของระบบ
 
@@ -63,7 +82,7 @@ sequenceDiagram
     participant GW as API Gateway
     participant JOB as Job Management
     participant ID as Identity
-    participant MQ as Message Broker
+    participant MQ as RabbitMQ
     participant V as Verification & Trust
 
     HR->>GW: ส่งประกาศหรือบันทึกการแก้ไข
@@ -103,24 +122,25 @@ API Contract v1 กำหนดสถานะชั่วคราวระห�
 
 ## 4. สิทธิ์และความปลอดภัย
 
-- Identity ออก token ที่ระบุ `userId` และบทบาท `STUDENT`, `COMPANY_HR`, `PLATFORM_ADMIN`, `SUPERVISOR`; Gateway และบริการปลายทางตรวจความถูกต้องและอายุ token
+- Identity ออก JWT แบบ ES256 อายุ 60 นาที มี `sub` (user ID), `role`, `iss`, `aud`, `iat`, `exp`; Identity เก็บ private key ส่วน Gateway/บริการปลายทางตรวจด้วย public key รวมทั้ง issuer, audience, อายุและบทบาท ไม่มี refresh token ในเดโม เมื่อหมดอายุให้ล็อกอินใหม่
+- รหัสผ่านเก็บเป็น Argon2id hash; บัญชี Admin/Supervisor สร้างผ่านคำสั่ง bootstrap ของ Identity ที่ผู้ดูแลรันเฉพาะตอนเตรียมเดโม ไม่มี public signup หรือรหัสผ่านตั้งต้นใน Git
 - บริการปลายทางตรวจสิทธิ์เชิงข้อมูลซ้ำ เช่น HR แก้ได้เฉพาะประกาศของบริษัทตนเอง และ Student รีวิวได้เฉพาะการฝึกงานของตนที่ `COMPLETED`
 - ข้อมูล e-KYB และเรซูเม่เป็นข้อมูลที่ต้องจำกัดการเข้าถึง เก็บเฉพาะที่จำเป็นและไม่ใส่ข้อมูลอ่อนไหวลงใน Event หรือ log
 - การติดต่อภายในระหว่างบริการต้องยืนยันตัวตนของบริการ ไม่เชื่อ role หรือ company ID ที่ส่งจาก Web UI โดยตรง
 
 ## 5. ความถูกต้องของข้อมูลและการรับมือความล้มเหลว
 
-- Event ต้องมี `eventId`, `occurredAt`, รหัสสิ่งที่เกี่ยวข้อง และ `jobVersion` สำหรับผลตรวจประกาศ Consumer ประมวลผลซ้ำได้โดยไม่เปลี่ยนผล และ Job Management ไม่รับผลของเวอร์ชันเก่า
-- การบันทึกข้อมูลธุรกิจกับการส่ง Event ต้องออกแบบให้ไม่สูญหายเมื่อ Broker ไม่พร้อม (เช่น transactional outbox); กำหนดรูปแบบจริงในขั้น API/Event Contract
+- Event ต้องมี `event_id`, `occurred_at`, รหัสสิ่งที่เกี่ยวข้อง และ `job_version` สำหรับผลตรวจประกาศ Consumer ประมวลผลซ้ำได้โดยไม่เปลี่ยนผล และ Job Management ไม่รับผลของเวอร์ชันเก่า
+- การบันทึกข้อมูลธุรกิจกับ Outbox อยู่ใน PostgreSQL transaction เดียวกันผ่าน Prisma; publisher ส่งจาก Outbox เข้า RabbitMQ ภายหลัง commit เพื่อไม่ให้ Event สูญหายเมื่อ Broker ไม่พร้อม
 - หาก Identity หรือ Verification ไม่พร้อม งานที่ยังตรวจไม่เสร็จต้องไม่ถูกเผยแพร่โดยปริยาย และต้องมีวิธี retry หรือให้ Admin ตรวจภายหลัง
 - Search, badge และข้อมูลแสดงผลที่ได้จาก Event อาจตามหลังข้อมูลต้นทางชั่วคราว; สิทธิ์เผยแพร่และการออก Certificate ต้องตรวจข้อมูลปัจจุบันจากบริการเจ้าของข้อมูล
 
-## 6. เอกสารต่อยอดและงานที่ต้องกำหนด
+## 6. เอกสารต่อยอดตามลำดับอ่าน
 
-1. Database Schema ของแต่ละบริการและความสัมพันธ์ผ่าน ID ข้ามบริการอยู่ใน `docs/database-schema.md`
-2. API Contract v1 ของ Auth, e-KYB, Jobs, Verification, Reports, Applications และ Supervisor อยู่ใน `docs/api-contract.md`
-3. Event Payload, การส่งซ้ำ, versioning และการจัดการ Event ที่ส่งไม่สำเร็จอยู่ใน `docs/event-contract.md`
-4. เทคโนโลยีที่ทีมจะใช้สำหรับ Gateway, Broker, Database และ e-KYB Mock ใน Docker Compose
-5. สถานะชั่วคราว `VERIFYING` และรูปแบบตอบกลับ `202` ของ API อยู่ใน `docs/api-contract.md`
+1. [Design Diagrams](diagrams.md): ภาพ 7 ประเภทที่ PM ขอและภาพประกอบเพิ่มเติม
+2. [API Contract v1](api-contract.md): Auth, e-KYB, Jobs, Verification, Reports, Applications และ Supervisor
+3. [Event Contract v1](event-contract.md): Event payload, routing, การส่งซ้ำ และ DLQ
+4. [Database Schema](database-schema.md): ตารางของแต่ละบริการและความสัมพันธ์ผ่าน ID ข้ามบริการ
+5. [Project Setup Handoff](project-setup.md): โครงสร้าง workspace, dependencies และแนวทางตั้งค่าเดโม
 
-เอกสารนี้กำหนดภาพรวมสถาปัตยกรรม ส่วนรายละเอียด Database, HTTP API และ Event อยู่ในเอกสารที่เชื่อมไว้ข้างต้น
+เอกสารนี้กำหนดภาพรวมสถาปัตยกรรม ส่วนรายละเอียด HTTP API, Event และ Database อยู่ในเอกสารที่เชื่อมไว้ข้างต้น

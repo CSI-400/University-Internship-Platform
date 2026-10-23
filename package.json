@@ -1,0 +1,36 @@
+{
+  "name": "university-internship-platform",
+  "private": true,
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": ">=24.11 <25"
+  },
+  "workspaces": [
+    "apps/*",
+    "services/*"
+  ],
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.0",
+    "@nestjs/testing": "^12.0.0",
+    "@types/amqplib": "^0.10.0",
+    "@types/chai": "^5.0.0",
+    "@types/mocha": "^10.0.0",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/supertest": "^6.0.0",
+    "chai": "^6.0.0",
+    "mocha": "^12.0.0",
+    "supertest": "^7.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.9.0"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.10.1": true,
+    "argon2@0.44.0": true,
+    "esbuild@0.28.2": true,
+    "prisma@7.10.1": true
+  }
+}
